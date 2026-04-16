@@ -24,13 +24,11 @@ The benchmark problem considers a three-region 1-D slab with scattering cross se
 
 ```
 .
-├── ...
 ├── FLXSLV.py                            # Flux solver: global matrix and vector assembly routines
 ├── MESH.py                              # Mesh definition and cell/zone layout
 ├── AQ.py                                # Angular quadrature: directions and weights
-└── time_dependent
-    ├── Transport_Driver_Benchmark_1D.py     # FOM driver: operators, time integration, snapshot generation
-    └── Nonlinear_Manifold_ROM.py            # NonlinearManifoldReducedModel class + integration tests
+├── Transport_Driver_Benchmark_1D.py     # FOM driver: operators, time integration, snapshot generation
+└── Nonlinear_Manifold_ROM.py            # NonlinearManifoldReducedModel class + integration tests
 ```
 
 ---

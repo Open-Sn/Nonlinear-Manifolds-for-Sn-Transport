@@ -55,6 +55,20 @@ Run the fast verification suite from the repository root with:
 python -m pytest
 ```
 
+The suite includes independently generated golden references for a tiny
+six-cell verification problem in `tests/golden/`. They compare production
+assembly, steady and transient solutions, and POD quantities against a separate
+dense DG and matrix-exponential implementation. Verify the committed reference
+without rewriting it with:
+
+```bash
+python tests/reference_generators/generate_tiny_1d_reference.py --check
+```
+
+These tiny references protect numerical behavior; they do not reproduce the
+publication-scale calculation or figures. Detailed provenance and tolerances
+are documented in `tests/golden/README.md`.
+
 ---
 
 ## Configuration

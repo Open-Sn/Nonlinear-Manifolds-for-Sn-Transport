@@ -1,0 +1,346 @@
+{
+  "arrays": {
+    "boundary_inflow_matrix": {
+      "authority": "independent_numerical",
+      "checksum_dtype_string": "<f8",
+      "description": "Map from four angular inflow values to the phase-space source.",
+      "dtype": "float64",
+      "shape": [
+        48,
+        4
+      ],
+      "tolerance_group": "operators"
+    },
+    "boundary_source": {
+      "authority": "independent_numerical",
+      "checksum_dtype_string": "<f8",
+      "description": "Source b for unit left inflow in the most-normal positive ordinate.",
+      "dtype": "float64",
+      "shape": [
+        48
+      ],
+      "tolerance_group": "operators"
+    },
+    "cell_edges": {
+      "authority": "analytic",
+      "checksum_dtype_string": "<f8",
+      "description": "Six uniform half-width cells spanning [0, 3].",
+      "dtype": "float64",
+      "shape": [
+        7
+      ],
+      "tolerance_group": "analytic"
+    },
+    "cell_material_ids": {
+      "authority": "analytic",
+      "checksum_dtype_string": "<i8",
+      "description": "Zero-based material identifier for each cell from left to right.",
+      "dtype": "int64",
+      "shape": [
+        6
+      ],
+      "tolerance_group": "analytic"
+    },
+    "mass_matrix": {
+      "authority": "independent_numerical",
+      "checksum_dtype_string": "<f8",
+      "description": "Direction-major DG phase-space mass matrix M.",
+      "dtype": "float64",
+      "shape": [
+        48,
+        48
+      ],
+      "tolerance_group": "operators"
+    },
+    "mu": {
+      "authority": "analytic",
+      "checksum_dtype_string": "<f8",
+      "description": "Tabulated order-four Gauss--Legendre ordinates in ascending order.",
+      "dtype": "float64",
+      "shape": [
+        4
+      ],
+      "tolerance_group": "analytic"
+    },
+    "pod_eigenvalues": {
+      "authority": "independent_numerical",
+      "checksum_dtype_string": "<f8",
+      "description": "Descending eigenvalues of C = S.T @ M @ S without a 1/Ns factor.",
+      "dtype": "float64",
+      "shape": [
+        6
+      ],
+      "tolerance_group": "pod_spectrum"
+    },
+    "pod_projection_error_rank3": {
+      "authority": "independent_numerical",
+      "checksum_dtype_string": "<f8",
+      "description": "Absolute M-norm best-projection error for each centered snapshot.",
+      "dtype": "float64",
+      "shape": [
+        6
+      ],
+      "tolerance_group": "pod_projection_error"
+    },
+    "pod_projector_rank3": {
+      "authority": "independent_numerical",
+      "checksum_dtype_string": "<f8",
+      "description": "Sign-invariant rank-three M-orthogonal projector V3 @ V3.T @ M.",
+      "dtype": "float64",
+      "shape": [
+        48,
+        48
+      ],
+      "tolerance_group": "pod_projector"
+    },
+    "pod_retained_energy": {
+      "authority": "independent_numerical",
+      "checksum_dtype_string": "<f8",
+      "description": "Cumulative fraction of correlation energy retained by each rank.",
+      "dtype": "float64",
+      "shape": [
+        6
+      ],
+      "tolerance_group": "pod_spectrum"
+    },
+    "pod_unresolved_energy": {
+      "authority": "independent_numerical",
+      "checksum_dtype_string": "<f8",
+      "description": "Fraction of correlation energy unresolved after each rank.",
+      "dtype": "float64",
+      "shape": [
+        6
+      ],
+      "tolerance_group": "pod_spectrum"
+    },
+    "scattering_matrix": {
+      "authority": "independent_numerical",
+      "checksum_dtype_string": "<f8",
+      "description": "Isotropic scattering matrix B with input-direction quadrature weights.",
+      "dtype": "float64",
+      "shape": [
+        48,
+        48
+      ],
+      "tolerance_group": "operators"
+    },
+    "steady_state": {
+      "authority": "independent_numerical",
+      "checksum_dtype_string": "<f8",
+      "description": "Dense-solve solution of F psi_inf = b.",
+      "dtype": "float64",
+      "shape": [
+        48
+      ],
+      "tolerance_group": "steady_state"
+    },
+    "streaming_matrix": {
+      "authority": "independent_numerical",
+      "checksum_dtype_string": "<f8",
+      "description": "Upwind DG streaming matrix G.",
+      "dtype": "float64",
+      "shape": [
+        48,
+        48
+      ],
+      "tolerance_group": "operators"
+    },
+    "system_matrix": {
+      "authority": "independent_numerical",
+      "checksum_dtype_string": "<f8",
+      "description": "Transport system matrix F = G + A - B.",
+      "dtype": "float64",
+      "shape": [
+        48,
+        48
+      ],
+      "tolerance_group": "operators"
+    },
+    "time": {
+      "authority": "analytic",
+      "checksum_dtype_string": "<f8",
+      "description": "Six prescribed output times from 0.00 through 0.05.",
+      "dtype": "float64",
+      "shape": [
+        6
+      ],
+      "tolerance_group": "analytic"
+    },
+    "total_interaction_matrix": {
+      "authority": "independent_numerical",
+      "checksum_dtype_string": "<f8",
+      "description": "Total-interaction matrix A from sigma_t.",
+      "dtype": "float64",
+      "shape": [
+        48,
+        48
+      ],
+      "tolerance_group": "operators"
+    },
+    "transient_state": {
+      "authority": "independent_numerical",
+      "checksum_dtype_string": "<f8",
+      "description": "Zero-initial-condition solution from an augmented matrix exponential.",
+      "dtype": "float64",
+      "shape": [
+        48,
+        6
+      ],
+      "tolerance_group": "transient_state"
+    },
+    "weights": {
+      "authority": "analytic",
+      "checksum_dtype_string": "<f8",
+      "description": "Tabulated Gauss--Legendre weights divided by two so they sum to one.",
+      "dtype": "float64",
+      "shape": [
+        4
+      ],
+      "tolerance_group": "analytic"
+    }
+  },
+  "artifact_name": "tiny_1d_reference.npz",
+  "authority": {
+    "artifact": "independent_numerical",
+    "permitted_classifications": [
+      "analytic",
+      "independent_numerical"
+    ],
+    "regression_only_content": false
+  },
+  "content_checksum": {
+    "algorithm": "sha256-canonical-array-content-v1",
+    "description": "Sort array names; for each array hash four length-prefixed fields: UTF-8 name, NumPy dtype.str, compact-JSON shape, and contiguous C-order bytes. NPZ ZIP bytes and metadata are excluded.",
+    "sha256": "91c84e813e5cbfabd0bf0c5be436afc19e64152b7f06c9f1a572a76038108238"
+  },
+  "expected_invariants": {
+    "final_distance_to_steady_mass_norm": 1.3670410701162587,
+    "initial_distance_to_steady_mass_norm": 1.3938262390652405,
+    "initial_state_max_abs": 0.0,
+    "normalized_weight_sum": 1.0,
+    "rank3_basis_mass_orthogonality_norm": 2.3670536907095757e-12,
+    "rank3_projector_idempotence_norm": 2.5276296121009298e-12,
+    "rank3_projector_mass_symmetry_norm": 2.474371550879108e-17,
+    "steady_relative_residual": 1.6387840737935078e-16
+  },
+  "generator": {
+    "generation_date": "2026-07-31",
+    "imports_production_modules": false,
+    "method": "Independent dense endpoint-DG assembly; scipy.linalg.solve for the steady state; scipy.linalg.expm on an augmented homogeneous system for the transient; scipy.linalg.eigh of S.T @ M @ S for POD.",
+    "numpy_version": "1.26.4",
+    "path": "tests/reference_generators/generate_tiny_1d_reference.py",
+    "scipy_version": "1.11.4"
+  },
+  "matrix_definitions": {
+    "A": "total-interaction matrix from sigma_t",
+    "B": "isotropic scattering matrix weighted by input ordinate",
+    "F": "G + A - B",
+    "G": "upwind DG streaming matrix",
+    "M": "direction-major phase-space DG mass matrix",
+    "equation": "M dpsi/dt + F psi = b"
+  },
+  "pod_definition": {
+    "centering": "transient_state - steady_state[:, None]",
+    "correlation": "C = S.T @ M @ S",
+    "eigensolver": "dense symmetric scipy.linalg.eigh",
+    "normalization_factor": 1.0,
+    "projection_error": "sqrt((S-P3S).T @ M @ (S-P3S)) per snapshot",
+    "rank3_projector": "V3 @ V3.T @ M"
+  },
+  "problem": {
+    "angular_ordinates": 4,
+    "initial_condition": "zero angular flux (tiny reference only)",
+    "left_inflow": {
+      "amplitude": 1.0,
+      "angular_index": 3,
+      "ordinate": "physical most-normal positive"
+    },
+    "particle_velocity": 1.0,
+    "phase_space_dofs": 48,
+    "production_sigmoid_represented": false,
+    "regions": [
+      {
+        "cells": 2,
+        "interval": [
+          0.0,
+          1.0
+        ],
+        "material": "void"
+      },
+      {
+        "cells": 2,
+        "interval": [
+          1.0,
+          2.0
+        ],
+        "material": "scattering_slab"
+      },
+      {
+        "cells": 2,
+        "interval": [
+          2.0,
+          3.0
+        ],
+        "material": "void"
+      }
+    ],
+    "right_inflow": "vacuum",
+    "sigma_s": [
+      0.0,
+      0.99,
+      0.0
+    ],
+    "sigma_t": [
+      0.0,
+      1.0,
+      0.0
+    ],
+    "spatial_dg_dofs": 12,
+    "spatial_domain": [
+      0.0,
+      3.0
+    ],
+    "time_grid": [
+      0.0,
+      0.01,
+      0.02,
+      0.03,
+      0.04,
+      0.05
+    ]
+  },
+  "publication_reference": false,
+  "recommended_tolerances": {
+    "analytic": {
+      "atol": 2e-15,
+      "rtol": 0.0
+    },
+    "operators": {
+      "atol": 1e-13,
+      "rtol": 0.0
+    },
+    "pod_projection_error": {
+      "atol": 1e-12,
+      "rtol": 1e-08
+    },
+    "pod_projector": {
+      "atol": 1e-10,
+      "rtol": 1e-08
+    },
+    "pod_spectrum": {
+      "atol": 1e-12,
+      "rtol": 1e-08
+    },
+    "steady_state": {
+      "atol": 1e-12,
+      "rtol": 1e-10
+    },
+    "transient_state": {
+      "atol": 1e-10,
+      "rtol": 1e-08
+    }
+  },
+  "schema_version": "1.0.0",
+  "scope_statement": "Tiny verification data only; it is not authoritative for the published production calculation.",
+  "state_ordering": "direction-major; within each direction, cells run left-to-right; within each cell, the left then right endpoint DG degree of freedom"
+}

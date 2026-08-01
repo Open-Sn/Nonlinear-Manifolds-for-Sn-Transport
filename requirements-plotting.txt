@@ -1,0 +1,6 @@
+-r requirements.txt
+
+# Optional: required only by the interactive plotting helpers in FLXSLV.py
+matplotlib>=3.7
+seaborn>=0.12
+

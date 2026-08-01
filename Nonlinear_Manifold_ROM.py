@@ -18,26 +18,83 @@ Public methods of the class include:
  
 Usage
 -----
-    from utils import *          # provides globalMM, globalFF, globalRB, etc.
-    model = NonlinearManifoldReducedModel()
-    model.run()
+    from Nonlinear_Manifold_ROM import NonlinearManifoldReducedModel
+    model = NonlinearManifoldReducedModel(nonlinear_embedding_type="tensorial")
 """
 
 import numpy as np
 import scipy as sp
-import matplotlib.pyplot as plt
 import scipy.sparse as sparse
 import scipy.sparse.linalg as linalg
 import copy as copy
 import time as time
+import os
 
-# ---------------------------------------------------------------------------
-# Import mesh/operator data from the project's utils module.
-# utils.py is expected to define: globalMM, globalMMsqrt, globalFF, globalRB,
-# globalAbsorption, globalScattering, globalStreaming, xx, ndir, and the
-# SOLUTION_PATH constant pointing to the Sp-DG1 solution snapshots.
+import Transport_Driver_Benchmark_1D as transport_driver
 from Transport_Driver_Benchmark_1D import *
-# ---------------------------------------------------------------------------
+
+
+_EMBEDDING_ALIASES = {
+    "elementwise": "elementwise",
+    "poly": "elementwise",
+    "tensorial": "tensorial",
+    "tens": "tensorial",
+    "rbf": "rbf",
+}
+
+# The published element-wise case required 23,367 alternating updates. Keep a
+# finite but comfortably larger limit for library and production calls.
+DEFAULT_MAX_INFERENCE_ITERATIONS = 100000
+
+
+def normalize_embedding_type(value):
+    """Normalize public embedding names while retaining historical aliases."""
+    if value is None:
+        return None
+    try:
+        return _EMBEDDING_ALIASES[value]
+    except (KeyError, TypeError):
+        raise ValueError(
+            "nonlinear_embedding_type must be None or one of the canonical "
+            "values 'elementwise', 'tensorial', 'rbf'; historical aliases "
+            "'poly' and 'tens' are also accepted"
+        ) from None
+
+
+def quadratic_features(matrix, embedding_type):
+    """Evaluate the current element-wise or non-redundant tensorial features."""
+    embedding_type = normalize_embedding_type(embedding_type)
+    matrix = np.asarray(matrix)
+    if embedding_type == "elementwise":
+        return np.power(matrix, 2)
+    if embedding_type == "tensorial":
+        sym_indices = np.triu_indices(matrix.shape[0])
+        products = np.einsum("i...,j...->ij...", matrix, matrix)
+        return products[sym_indices[0], sym_indices[1], ...]
+    raise ValueError("quadratic features require 'elementwise' or 'tensorial'")
+
+
+def partition_time_indices(time_steps, training_end_time):
+    """Partition an increasing FOM time grid at an inclusive training endpoint."""
+    time_steps = np.asarray(time_steps, dtype=float)
+    if time_steps.ndim != 1 or time_steps.size == 0:
+        raise ValueError("time_steps must be a nonempty one-dimensional array")
+    if not np.all(np.isfinite(time_steps)) or np.any(np.diff(time_steps) <= 0.0):
+        raise ValueError("time_steps must be finite and strictly increasing")
+    tolerance = max(
+        1.0e-12,
+        16.0 * np.finfo(float).eps * max(1.0, np.max(np.abs(time_steps))),
+    )
+    training = np.flatnonzero(time_steps <= float(training_end_time) + tolerance)
+    extrapolation = np.flatnonzero(time_steps > float(training_end_time) + tolerance)
+    if training.size == 0:
+        raise ValueError("training_end_time precedes the first FOM time")
+    return training, extrapolation
+
+
+def _ensure_production_context():
+    """Refresh this module's historical aliases from the initialized FOM driver."""
+    globals().update(transport_driver.initialize_production_problem())
 
 
 class NonlinearManifoldReducedModel:
@@ -50,6 +107,16 @@ class NonlinearManifoldReducedModel:
     ...
 
     """
+
+
+    @property
+    def nonlinear_embedding_type(self):
+        return self._nonlinear_embedding_type
+
+
+    @nonlinear_embedding_type.setter
+    def nonlinear_embedding_type(self, value):
+        self._nonlinear_embedding_type = normalize_embedding_type(value)
 
 
     def __init__(
@@ -80,7 +147,10 @@ class NonlinearManifoldReducedModel:
         # ── Placeholders – Training data parameters ─────────────────────────
         self.solution_path = None
         self.train_fraction = None
+        self.training_end_time = None
         self.train_size = None
+        self.training_indices = None
+        self.extrapolation_indices = None
         self.n_dofs = None
 
         # ── Placeholders – populated by the run methods ────────────────────
@@ -129,6 +199,7 @@ class NonlinearManifoldReducedModel:
         self.inferredStreamingNonlinear = None
         self.inferredLinear = None
         self.inferredNonlinear = None
+        self.inference_diagnostics = None
 
         # ── Placeholders – Initial condition ─v──────────────────────────────
         self.initial_condition = None
@@ -143,28 +214,68 @@ class NonlinearManifoldReducedModel:
         train_fraction: float = 0.75,
         TT: float = 10.0,
         dt: float = 0.001,
+        training_end_time: float = None,
+        evaluation_times=None,
     ):
         """Load Sp-DG1 snapshots, compute asymptotic solution, and build training set."""
+
+        _ensure_production_context()
 
         # Store simulation parameters:
         self.solution_path = solution_path
         self.TT = TT
         self.dt = dt
         
-        # Load Sp-DG1 solution snapshots and compute asymptotic solution:
-        self.solutionDG1 = np.load(self.solution_path)
+        # Load and validate the phase-space-by-time snapshot array before use.
+        snapshots = np.asarray(np.load(self.solution_path))
+        if snapshots.ndim != 2:
+            raise ValueError(
+                f"FOM snapshot array must have rank 2; received rank {snapshots.ndim}"
+            )
+        expected_phase_rows = globalFF.shape[0]
+        if snapshots.shape[0] != expected_phase_rows:
+            raise ValueError(
+                "FOM snapshot array has the wrong number of phase-space rows: "
+                f"expected {expected_phase_rows}, received {snapshots.shape[0]}"
+            )
+        if not np.all(np.isfinite(snapshots)):
+            raise ValueError("FOM snapshot array must contain only finite values")
+        self.solutionDG1 = snapshots
+
+        # Use the same inclusive evaluation-time grid as the FOM.
+        if evaluation_times is None:
+            evaluation_times = transport_driver.make_uniform_time_grid(self.TT, self.dt)
+        self.time_steps = np.asarray(evaluation_times, dtype=float)
+        if self.solutionDG1.shape[1] != self.time_steps.size:
+            raise ValueError(
+                "FOM snapshot array has the wrong number of time columns: "
+                f"expected {self.time_steps.size}, received {self.solutionDG1.shape[1]}"
+            )
+        if not np.allclose(
+            np.diff(self.time_steps), self.dt, rtol=0.0, atol=1.0e-12
+        ):
+            raise ValueError("FOM evaluation times are inconsistent with dt")
+        if not np.isclose(self.time_steps[0], 0.0, rtol=0.0, atol=1.0e-12) or not np.isclose(
+            self.time_steps[-1], self.TT, rtol=0.0, atol=1.0e-12
+        ):
+            raise ValueError("FOM evaluation times must span [0, TT]")
+
+        # Compute the asymptotic solution only after the snapshot is validated.
         self.solutionInf = sparse.linalg.spsolve(globalFF, globalRB)
 
-        # Define the time steps corresponding to the snapshots:
-        self.time_steps = np.linspace(0.0, self.TT - self.dt, self.solutionDG1.shape[1])
-
-        # Define training set and compute its size:
+        # Select training snapshots from the physical time array, including its endpoint.
         self.train_fraction = train_fraction
-        self.train_size = int(self.solutionDG1.shape[1] * self.train_fraction)
+        if training_end_time is None:
+            training_end_time = self.TT * self.train_fraction
+        self.training_end_time = float(training_end_time)
+        self.training_indices, self.extrapolation_indices = partition_time_indices(
+            self.time_steps, self.training_end_time
+        )
+        self.train_size = self.training_indices.size
         self.n_dofs = self.solutionDG1.shape[0]
 
         # Subtract asymptotic solution from snapshots to build the training set:
-        self.global_training_set = self.solutionDG1[:, : self.train_size : 1] - np.tile(
+        self.global_training_set = self.solutionDG1[:, self.training_indices] - np.tile(
             self.solutionInf, (self.train_size, 1)
         ).T
 
@@ -188,9 +299,15 @@ class NonlinearManifoldReducedModel:
  
         # Compute time derivatives for the first and last 4 snapshots using forward and backward finite differences:
         NN = self.train_size
+        if NN < 9:
+            raise ValueError("at least nine training snapshots are required for eighth-order derivatives")
         for ii in range(4):
             self.global_derivative_set[:, ii] = self.global_training_set[:, ii : ii + 9] @ f_coeff
-            self.global_derivative_set[:, NN - 4 + ii] = self.global_training_set[:, NN - 4 - 9 : NN - 4] @ b_coeff
+            backward_index = NN - 4 + ii
+            self.global_derivative_set[:, backward_index] = (
+                self.global_training_set[:, backward_index - 8 : backward_index + 1]
+                @ b_coeff
+            )
         
         # Compute time derivatives for the remaining snapshots using central finite differences:
         for ii in range(NN - 8):
@@ -263,11 +380,10 @@ class NonlinearManifoldReducedModel:
         # Store the regularisation weight for the nonlinear embedding:
         self.lambda_E = lambda_E
 
-        #  Define nonlinear function handles based on the specified embedding type (tensorial):
-        if self.nonlinear_embedding_type == "tens":
-            sym_indeces = np.triu_indices(self.size_R)
-            self.nonlinear_function = lambda matrix: (
-                np.einsum("i...,j...->ij...", matrix, matrix)[sym_indeces[0], sym_indeces[1], ...]
+        # Define nonlinear function handles using normalized public names.
+        if self.nonlinear_embedding_type in {"tensorial", "elementwise"}:
+            self.nonlinear_function = lambda matrix: quadratic_features(
+                matrix, self.nonlinear_embedding_type
             )
 
         # Define nonlinear function handles based on the specified embedding type (RBF):
@@ -277,10 +393,6 @@ class NonlinearManifoldReducedModel:
                 [kernel(matrix, self.pod_linear_coeff[:, ii]) for ii in range(0, self.pod_linear_coeff.shape[1], self.every_rbf)]
             )
 
-        # Define nonlinear function handles based on the specified embedding type (polynomial):
-        if self.nonlinear_embedding_type == "poly":
-            self.nonlinear_function = lambda matrix: np.power(matrix, 2)    
- 
         # Evaluate the nonlinear function on the linear POD coefficients and compute the nonlinear lift matrix:
         if self.nonlinear_embedding_type is not None:
             pod_nonlinear_coeff = self.nonlinear_function(self.pod_linear_coeff)
@@ -356,7 +468,16 @@ class NonlinearManifoldReducedModel:
 
 
     @staticmethod
-    def nonlinear_inference(linear_coeff, nonlinear_coeff, residual, ll_A=0, ll_H=1e-5, tolerance=1e-6):
+    def nonlinear_inference(
+        linear_coeff,
+        nonlinear_coeff,
+        residual,
+        ll_A=0,
+        ll_H=1e-5,
+        tolerance=1e-6,
+        max_iterations=DEFAULT_MAX_INFERENCE_ITERATIONS,
+        return_diagnostics=False,
+    ):
         """
         Nonlinear Inference: recover the linear and nonlinear reduced streaming
         operators from snapshot data via an iterative fixed-point scheme.
@@ -378,30 +499,70 @@ class NonlinearManifoldReducedModel:
         nl_lin        = -nonlinear_coeff @ RHS_linear
         lin_nl        = -linear_coeff    @ RHS_nonlinear
  
-        # Initalize the inferred operators and perform fixed-point iterations until convergence:
+        if max_iterations < 1:
+            raise ValueError("max_iterations must be at least one")
+
+        # Initialize the inferred operators and perform the existing alternating updates:
         AA = np.zeros((linear_coeff.shape[0], linear_coeff.shape[0]))
         HH = np.zeros((linear_coeff.shape[0], nonlinear_coeff.shape[0]))
-        while True:
+        converged = False
+        termination_reason = "maximum_iterations"
+        final_convergence_measure = np.inf
+        iteration_count = 0
+        for iteration_count in range(1, max_iterations + 1):
 
             # Update the inferred linear and nonlinear streaming operators:
-            AA_new = simple_lin    + HH     @ nl_lin
-            HH_new = simple_nonlin + AA_new @ lin_nl
+            with np.errstate(over="ignore", invalid="ignore"):
+                AA_new = simple_lin    + HH     @ nl_lin
+                HH_new = simple_nonlin + AA_new @ lin_nl
+
+            if not np.all(np.isfinite(AA_new)) or not np.all(np.isfinite(HH_new)):
+                AA, HH = AA_new, HH_new
+                termination_reason = "nonfinite_iterate"
+                break
 
             # Compute the relative changes in the inferred operators and check for convergence:
             err_A = np.linalg.norm(AA_new - AA) / (np.linalg.norm(AA_new) + np.finfo(float).eps)
             err_H = np.linalg.norm(HH_new - HH) / (np.linalg.norm(HH_new) + np.finfo(float).eps)
+            final_convergence_measure = float(np.sqrt(err_A ** 2 + err_H ** 2))
+
+            if not np.isfinite(final_convergence_measure):
+                AA, HH = AA_new, HH_new
+                termination_reason = "nonfinite_convergence_measure"
+                break
 
             # Update the inferred operators for the next iteration:
             AA, HH = AA_new.copy(), HH_new.copy()
 
             # Check for convergence:
-            if np.sqrt(err_A ** 2 + err_H ** 2) < tolerance:
+            if final_convergence_measure < tolerance:
+                converged = True
+                termination_reason = "converged"
                 break
- 
+
+        diagnostics = {
+            "converged": converged,
+            "iteration_count": iteration_count,
+            "final_convergence_measure": final_convergence_measure,
+            "termination_reason": termination_reason,
+        }
+        if return_diagnostics:
+            return AA, HH, diagnostics
+        if not converged:
+            raise RuntimeError(
+                "nonlinear operator inference did not converge: "
+                f"{termination_reason}"
+            )
         return AA, HH
 
 
-    def compute_inferred_operators(self, lambda_A: float = 0.0, lambda_H: float = 1e-3):
+    def compute_inferred_operators(
+        self,
+        lambda_A: float = 0.0,
+        lambda_H: float = 1e-3,
+        tolerance: float = 1e-6,
+        max_iterations: int = DEFAULT_MAX_INFERENCE_ITERATIONS,
+    ):
         """
         Use operator inference to approximate the linear and nonlinear streaming operators.
  
@@ -425,8 +586,25 @@ class NonlinearManifoldReducedModel:
         # Compute the inferred linear and nonlinear streaming operators using operator inference:
         self.inferredStreamingLinear = self.linear_inference(self.pod_linear_coeff, resid_linear, ll_A=self.lambda_A)
         if self.nonlinear_embedding_type is not None:
-            self.inferredStreamingLinear, self.inferredStreamingNonlinear = self.nonlinear_inference(
-                self.pod_linear_coeff, self.pod_nonlinear_coeff, resid_nonlinear, ll_A=self.lambda_A, ll_H=self.lambda_H)    
+            (
+                self.inferredStreamingLinear,
+                self.inferredStreamingNonlinear,
+                self.inference_diagnostics,
+            ) = self.nonlinear_inference(
+                self.pod_linear_coeff,
+                self.pod_nonlinear_coeff,
+                resid_nonlinear,
+                ll_A=self.lambda_A,
+                ll_H=self.lambda_H,
+                tolerance=tolerance,
+                max_iterations=max_iterations,
+                return_diagnostics=True,
+            )
+            if not self.inference_diagnostics["converged"]:
+                reason = self.inference_diagnostics["termination_reason"]
+                raise RuntimeError(
+                    f"nonlinear operator inference did not converge: {reason}"
+                )
             
         # Assemble the inferred linear and nonlinear operators (if specified):
         self.inferredLinear = self.inferredStreamingLinear + self.projectedAbsorptionLinear - self.projectedScatteringLinear
@@ -482,6 +660,13 @@ class NonlinearManifoldReducedModel:
         # Integrate the reduced-order model over the full time interval using a stiff ODE solver:
         ivp_kw = dict(t_span=(0.0, self.TT), method="Radau", atol=1e-12, rtol=1e-9, t_eval=self.time_steps)
         ivp_result  = sp.integrate.solve_ivp(fun=ff, y0=self.initial_condition, **ivp_kw)
+        validate_solve_ivp_result(
+            ivp_result,
+            self.time_steps,
+            self.initial_condition.size,
+            "reduced-order model solve",
+            expected_final_time=self.TT,
+        )
 
         # Reconstruct the full-order solution from the reduced coefficients and the POD bases:
         reconstruction = self.solutionInf[:, None] + self.pod_linear_basis @ ivp_result .y
@@ -513,15 +698,20 @@ class NonlinearManifoldReducedModel:
 # ==============================================================================
 # TESTING / ENTRY POINT
 # ==============================================================================
-if __name__ == "__main__":
+def main():
+    """Run the existing six-model production ROM workflow explicitly."""
     import time
+
+    if not os.path.exists(SOLUTION_PATH):
+        transport_driver.main()
+    _ensure_production_context()
  
     print("=" * 70)
     print("NonlinearManifoldReducedModel - Integration Test")
     print("=" * 70)
  
     # ── Hyperparameters ────────────────────────────────────────────────────────
-    SOLUTION_PATH   = SOLUTION_PATH
+    solution_path   = SOLUTION_PATH
     TT              = 10.0
     DT              = 0.001
     TRAIN_FRACTION  = 0.75
@@ -541,7 +731,7 @@ if __name__ == "__main__":
  
     # ── Load training data and compute time derivatives (shared by all models) ─
     prototype_model = NonlinearManifoldReducedModel(nonlinear_embedding_type=None)
-    prototype_model.load_training_data(solution_path=SOLUTION_PATH, train_fraction=TRAIN_FRACTION, TT=TT, dt=DT)
+    prototype_model.load_training_data(solution_path=solution_path, train_fraction=TRAIN_FRACTION, TT=TT, dt=DT)
     prototype_model.compute_time_derivatives()
     prototype_model.compute_pod(size_R=SIZE_R, size_Q=SIZE_Q)
 
@@ -667,5 +857,7 @@ if __name__ == "__main__":
     for label, err in results:
         print(f"  {label:<30}  {err.mean():>12.4e}  {err.max():>12.4e}")
     print("=" * 70)
- 
 
+
+if __name__ == "__main__":
+    main()

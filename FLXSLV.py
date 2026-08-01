@@ -5,7 +5,6 @@ Created on Sat Apr 15 17:07:11 2023
 @author: jean.ragusa
 """
 import numpy as np
-import matplotlib.pyplot as plt
 from scipy.sparse.linalg import gmres, LinearOperator
 import scipy.sparse
 
@@ -499,6 +498,8 @@ class FLXSLV:
 
     # %%
     def eddington(self, phi, psi):
+        import matplotlib.pyplot as plt
+
         E = np.zeros_like(phi)
 
         # volumetric rate integration
@@ -524,6 +525,7 @@ class FLXSLV:
         add_legend=False,
         add_title=False,
     ):
+        import matplotlib.pyplot as plt
         import seaborn as sns
         import itertools as itertools
 

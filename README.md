@@ -33,29 +33,36 @@ The benchmark problem considers a three-region 1-D slab with scattering cross se
 
 ---
 
-## Dependencies
+## Dependencies and tests
 
-The code requires Python 3.8+ and the following packages:
-
-```
-numpy
-scipy
-matplotlib
-```
-
-All dependencies are available via `pip` or `conda`:
+The numerical and test code requires Python 3.8+ with NumPy, SciPy, and
+pytest. Install the minimal environment with:
 
 ```bash
-pip install numpy scipy matplotlib
+pip install -r requirements.txt
 ```
 
-The user-defined modules `FLXSLV`, `MESH`, and `AQ` must also be available on the Python path (see [Configuration](#configuration)).
+Matplotlib and seaborn are used only by the optional interactive plotting
+helpers:
+
+```bash
+pip install -r requirements-plotting.txt
+```
+
+Run the fast verification suite from the repository root with:
+
+```bash
+python -m pytest
+```
 
 ---
 
 ## Configuration
 
-`Transport_Driver_Benchmark_1D.py` inserts the parent directory onto the path at import time, but since all modules live in the same repository this is handled transparently — no manual path configuration is required.
+Importing `Transport_Driver_Benchmark_1D` or `Nonlinear_Manifold_ROM` is safe:
+the historical production operator globals are assembled, but imports do not
+solve either model, load the production snapshot, or write files. FOM and ROM
+workflows start only from the explicit script entry points or method calls.
 
 Key simulation parameters are set near the top of `Transport_Driver_Benchmark_1D.py`:
 
@@ -79,13 +86,13 @@ Run the transport driver to produce and save the full-order solution snapshots:
 python Transport_Driver_Benchmark_1D.py
 ```
 
-The script checks whether a snapshot file already exists (e.g., `solutionDG1_A4_T10_Nt10001_Nx750_continuous_bis.npy`). If it does not, the time-dependent transport equation is integrated using SciPy's `solve_ivp` with the `Radau` method and the solution is saved to disk. If the file is found, the solve is skipped and the existing data is loaded.
+The script checks whether the canonical snapshot file already exists (`solutionDG1_A4_T10_Nt10001_Nx750_continuous_bis.npy`). If it does not, the time-dependent transport equation is integrated using SciPy's `solve_ivp` with the `Radau` method and the solution is saved to disk. If the file is found, the solve is skipped. The production snapshot is not included in this repository and is approximately 458 MiB when generated.
 
 **Problem setup:**
 - Three-region slab geometry (vacuum | scattering | vacuum), total width 3 cm, 750 DG1 cells
 - Cross sections: $\sigma_t = [0, 1, 0]$, $\sigma_s = [0, 0.99, 0]$
-- Boundary condition: unit incoming flux applied in the most-grazing left-boundary direction
-- Initial condition: smooth sigmoid profile, transient towards a non-trivial steady state
+- Boundary condition: unit incoming flux applied in the most-normal positive ordinate (historically labeled `"most_grazing"` in the helper)
+- Initial condition: the existing localized sigmoid in the final angular block, transient towards a non-trivial steady state
 
 ### Step 2 — Train and Evaluate Reduced-Order Models
 
@@ -93,7 +100,16 @@ The script checks whether a snapshot file already exists (e.g., `solutionDG1_A4_
 python Nonlinear_Manifold_ROM.py
 ```
 
-Running `Nonlinear_Manifold_ROM.py` as a script executes six integration tests in sequence and prints a summary error table to the terminal.
+Running `Nonlinear_Manifold_ROM.py` as a script executes six production ROM
+variants in sequence and prints a summary error table to the terminal. These
+model runs are separate from the fast pytest verification suite.
+
+If the production snapshot is absent, this explicit command first invokes the
+FOM workflow. Importing the module does not do so.
+
+Publication-scale figure and table reproduction is not yet automated. Open
+scientific and provenance items are recorded in
+[`docs/open_scientific_questions.md`](docs/open_scientific_questions.md).
 
 ---
 
@@ -102,7 +118,7 @@ Running `Nonlinear_Manifold_ROM.py` as a script executes six integration tests i
 The class is the central object of `Nonlinear_Manifold_ROM.py`. A typical workflow chains the following methods:
 
 ```python
-from Transport_Driver_Benchmark_1D import *
+from Nonlinear_Manifold_ROM import NonlinearManifoldReducedModel, SOLUTION_PATH
 
 model = NonlinearManifoldReducedModel(nonlinear_embedding_type="tens")
 
@@ -122,7 +138,7 @@ errors   = model.compute_errors(solution)
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `nonlinear_embedding_type` | `str` or `None` | `"tensorial"` | Nonlinear embedding type: `"tens"` (tensorial), `"poly"` (polynomial), `"rbf"` (radial basis functions), or `None` (linear subspace) |
+| `nonlinear_embedding_type` | `str` or `None` | `"tensorial"` | Canonical names are `"tensorial"` and `"elementwise"`; historical aliases `"tens"` and `"poly"`, optional `"rbf"`, and `None` for a linear subspace are accepted |
 | `eps_rbf` | `float` | `None` | RBF correlation length (required for `"rbf"` embedding) |
 | `every_rbf` | `int` | `None` | Snapshot stride for RBF centre selection |
 
@@ -155,6 +171,6 @@ Six ROM configurations are exercised in the integration test block (`__name__ ==
 | 5 | Tensorial | Semi-intrusive (OpInf) | `size_R=16`, `size_Q=364`, `lambda_E=1e-7/4 * N_train`, `lambda_H=1e-7 * 16 * N_train` |
 | 6 | Polynomial | Semi-intrusive (OpInf) | `size_R=16`, `size_Q=364`, `lambda_E=1e-7/4 * N_train`, `lambda_H=1e-4 * 16 * N_train` |
 
-The training set uses 75% of the available snapshots; the remaining 25% serve as an extrapolation test set. A summary table of mean and maximum normalised errors is printed at the end.
+The production time grid contains 10,001 snapshots from 0 through 10. The training partition includes all 7,501 snapshots through time 7.5; extrapolation begins at 7.501. A summary table of mean and maximum normalised errors is printed at the end.
 
 ---

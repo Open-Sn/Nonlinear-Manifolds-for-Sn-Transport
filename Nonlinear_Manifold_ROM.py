@@ -32,6 +32,7 @@ import os
 
 import Transport_Driver_Benchmark_1D as transport_driver
 from Transport_Driver_Benchmark_1D import *
+from one_d.rom import partition_time_indices as _partition_time_indices
 
 
 _EMBEDDING_ALIASES = {
@@ -76,20 +77,7 @@ def quadratic_features(matrix, embedding_type):
 
 def partition_time_indices(time_steps, training_end_time):
     """Partition an increasing FOM time grid at an inclusive training endpoint."""
-    time_steps = np.asarray(time_steps, dtype=float)
-    if time_steps.ndim != 1 or time_steps.size == 0:
-        raise ValueError("time_steps must be a nonempty one-dimensional array")
-    if not np.all(np.isfinite(time_steps)) or np.any(np.diff(time_steps) <= 0.0):
-        raise ValueError("time_steps must be finite and strictly increasing")
-    tolerance = max(
-        1.0e-12,
-        16.0 * np.finfo(float).eps * max(1.0, np.max(np.abs(time_steps))),
-    )
-    training = np.flatnonzero(time_steps <= float(training_end_time) + tolerance)
-    extrapolation = np.flatnonzero(time_steps > float(training_end_time) + tolerance)
-    if training.size == 0:
-        raise ValueError("training_end_time precedes the first FOM time")
-    return training, extrapolation
+    return _partition_time_indices(time_steps, training_end_time)
 
 
 def _ensure_production_context():
@@ -630,17 +618,15 @@ class NonlinearManifoldReducedModel:
             self.initial_condition = sp.optimize.minimize(nonlinear_error, self.pod_linear_coeff[:, 0] , method="Nelder-Mead", tol=1e-7, options={"maxiter": 10000})["x"]
 
 
-    # ======================================================================
-    # 8. SOLVE REDUCED PROBLEMS
-    # ======================================================================
-    def solve(self, intrusive: bool = True):
-        """
-        Integrate the projected or inferred linear, or nonlinear reduced-order models in time 
-        and reconstruct the full-order solution from the reduced coefficients and the POD bases. 
-        The `intrusive` flag determines whether to solve the projected (intrusive) or inferred 
-        (semi-intrusive) reduced models. 
-        """
-
+    def integrate_reduced(
+        self,
+        intrusive: bool = True,
+        method: str = "Radau",
+        atol: float = 1e-12,
+        rtol: float = 1e-9,
+        initial_time: float = 0.0,
+    ):
+        """Integrate reduced coefficients using the existing ROM equations."""
         # Compute the initial conditions if they have not been computed yet:
         if self.initial_condition is None:
             self.compute_initial_conditions()
@@ -658,7 +644,7 @@ class NonlinearManifoldReducedModel:
                 ff = lambda tt, ss: -self.inferredLinear @ ss - self.inferredNonlinear @ self.nonlinear_function(ss)
 
         # Integrate the reduced-order model over the full time interval using a stiff ODE solver:
-        ivp_kw = dict(t_span=(0.0, self.TT), method="Radau", atol=1e-12, rtol=1e-9, t_eval=self.time_steps)
+        ivp_kw = dict(t_span=(initial_time, self.TT), method=method, atol=atol, rtol=rtol, t_eval=self.time_steps)
         ivp_result  = sp.integrate.solve_ivp(fun=ff, y0=self.initial_condition, **ivp_kw)
         validate_solve_ivp_result(
             ivp_result,
@@ -667,14 +653,34 @@ class NonlinearManifoldReducedModel:
             "reduced-order model solve",
             expected_final_time=self.TT,
         )
+        return ivp_result
+
+
+    def reconstruct(self, reduced_coefficients):
+        """Reconstruct full states using the existing affine manifold formula."""
+        reduced_coefficients = np.asarray(reduced_coefficients)
 
         # Reconstruct the full-order solution from the reduced coefficients and the POD bases:
-        reconstruction = self.solutionInf[:, None] + self.pod_linear_basis @ ivp_result .y
+        reconstruction = self.solutionInf[:, None] + self.pod_linear_basis @ reduced_coefficients
         if self.nonlinear_embedding_type is not None:
-            reconstruction += self.pod_nonlinear_basis @ self.nonlinear_function(ivp_result .y)
+            reconstruction += self.pod_nonlinear_basis @ self.nonlinear_function(reduced_coefficients)
 
         # Return the reconstructed solution:
         return reconstruction
+
+
+    # ======================================================================
+    # 8. SOLVE REDUCED PROBLEMS
+    # ======================================================================
+    def solve(self, intrusive: bool = True):
+        """
+        Integrate the projected or inferred linear, or nonlinear reduced-order models in time
+        and reconstruct the full-order solution from the reduced coefficients and the POD bases.
+        The `intrusive` flag determines whether to solve the projected (intrusive) or inferred
+        (semi-intrusive) reduced models.
+        """
+        ivp_result = self.integrate_reduced(intrusive=intrusive)
+        return self.reconstruct(ivp_result.y)
 
 
     # ======================================================================

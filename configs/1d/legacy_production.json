@@ -1,0 +1,62 @@
+{
+  "schema_version": "1.0.0",
+  "name": "legacy_production",
+  "description": "Current repository 1D production defaults; preserved behavior, not a publication-reproduction claim.",
+  "problem": {
+    "region_widths": [1.0, 1.0, 1.0],
+    "cells_per_region": [250, 250, 250],
+    "sigma_t": [0.0, 1.0, 0.0],
+    "sigma_s": [0.0, 0.99, 0.0],
+    "angular_ordinates": 4,
+    "inflow_boundary": "left",
+    "inflow_direction": "most_normal",
+    "inflow_amplitude": 1.0,
+    "initial_condition": {
+      "kind": "localized_sigmoid",
+      "transition_location": 0.1,
+      "steepness": 100.0,
+      "amplitude": 1.0,
+      "angular_block": "final"
+    },
+    "particle_velocity": 1.0
+  },
+  "time": {
+    "initial_time": 0.0,
+    "final_time": 10.0,
+    "output_spacing": 0.001,
+    "fom_method": "Radau",
+    "fom_absolute_tolerance": 1e-09,
+    "fom_relative_tolerance": 1e-12,
+    "rom_method": "Radau",
+    "rom_absolute_tolerance": 1e-12,
+    "rom_relative_tolerance": 1e-09,
+    "training_end_time": 7.5
+  },
+  "rom": {
+    "latent_dimension": 16,
+    "lifting_dimension": 364,
+    "embedding_type": "elementwise",
+    "streaming_operators": "inferred",
+    "lifting_regularization": 0.0001875,
+    "linear_inference_regularization": 0.0,
+    "quadratic_inference_regularization_linear": 1e-05,
+    "quadratic_inference_regularization_elementwise": 12.0,
+    "quadratic_inference_regularization_tensorial": 0.012,
+    "nonlinear_inference_tolerance": 1e-06,
+    "nonlinear_inference_maximum_iterations": 100000,
+    "historical_sequence": [
+      "linear:projected",
+      "tensorial:projected",
+      "elementwise:projected",
+      "linear:inferred",
+      "tensorial:inferred",
+      "elementwise:inferred"
+    ]
+  },
+  "output": {
+    "snapshot_filename": "solutionDG1_A4_T10_Nt10001_Nx750_continuous_bis.npy",
+    "output_root": "results/1d",
+    "reuse_existing_snapshot": true,
+    "allow_overwrite": false
+  }
+}

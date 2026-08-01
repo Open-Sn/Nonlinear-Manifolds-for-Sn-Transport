@@ -69,6 +69,10 @@ These tiny references protect numerical behavior; they do not reproduce the
 publication-scale calculation or figures. Detailed provenance and tolerances
 are documented in `tests/golden/README.md`.
 
+The [organized, configuration-driven 1-D workflow](docs/1d_workflow.md)
+documents the reusable interfaces and safe dry-run commands. Historical
+root-level commands remain available with unchanged defaults.
+
 ---
 
 ## Configuration
@@ -78,7 +82,8 @@ the historical production operator globals are assembled, but imports do not
 solve either model, load the production snapshot, or write files. FOM and ROM
 workflows start only from the explicit script entry points or method calls.
 
-Key simulation parameters are set near the top of `Transport_Driver_Benchmark_1D.py`:
+Key simulation parameters are explicit in `configs/1d/legacy_production.json`
+and remain exposed near the top of `Transport_Driver_Benchmark_1D.py`:
 
 | Parameter | Default | Description |
 |---|---|---|

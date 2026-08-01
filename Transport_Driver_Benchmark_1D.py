@@ -2,17 +2,17 @@
 import numpy as np
 import scipy as sp
 import scipy.sparse as sparse
-import scipy.sparse.linalg as linalg
-import copy as copy
-import time as time
-import sys as sys
 import os
+from pathlib import Path
 
-# Import user defined libraries:
-sys.path.insert(0, "../")
-from FLXSLV import FLXSLV
-from MESH import MESH
-from AQ import AQ
+from one_d.config import load_config
+from one_d.problem import (
+    assemble_operators,
+    build_problem,
+    construct_initial_condition_values,
+    mass_matrix_block_inverse,
+    mass_matrix_square_root,
+)
 
 
 def make_uniform_time_grid(t_final, dt):
@@ -25,28 +25,37 @@ def make_uniform_time_grid(t_final, dt):
     return np.arange(n_intervals + 1, dtype=float) * float(dt)
 
 
+# Load the explicit configuration that preserves the historical defaults.
+LEGACY_CONFIG_PATH = (
+    Path(__file__).resolve().parent / "configs" / "1d" / "legacy_production.json"
+)
+LEGACY_CONFIG = load_config(LEGACY_CONFIG_PATH)
+
 # Select angular quadrature order:
-ndir = 4
+ndir = LEGACY_CONFIG.problem.angular_ordinates
 
 # Define region widths and intervals in each region:
-width = np.array([1.0, 1.0, 1.0])
-n_ref = np.array([250, 250, 250], dtype=int)
+width = np.asarray(LEGACY_CONFIG.problem.region_widths, dtype=float)
+n_ref = np.asarray(LEGACY_CONFIG.problem.cells_per_region, dtype=int)
 n_cells = np.sum(n_ref)
 
 # Define the final time and time step for the time-dependent problem:
-TT = 10
-dt = 0.001
+TT = LEGACY_CONFIG.time.final_time
+dt = LEGACY_CONFIG.time.output_spacing
 PRODUCTION_TIME_STEPS = make_uniform_time_grid(TT, dt)
 NN = PRODUCTION_TIME_STEPS.size
+FOM_METHOD = LEGACY_CONFIG.time.fom_method
+FOM_ATOL = LEGACY_CONFIG.time.fom_absolute_tolerance
+FOM_RTOL = LEGACY_CONFIG.time.fom_relative_tolerance
 
 # Define the canonical path for the inclusive production snapshot array.
-SOLUTION_PATH = f"solutionDG1_A4_T{TT}_Nt{NN}_Nx{n_cells}_continuous_bis.npy"
+SOLUTION_PATH = LEGACY_CONFIG.output.snapshot_filename
 
 # Define a dictionary with the cross sections (total and scattering) for each region:
 myXS = {}
 myXS["ng"] = 1
-myXS["sigt"] = np.array([0.00, 1.00, 0.00])
-myXS["sigs"] = np.array([0.00, 0.99, 0.00])
+myXS["sigt"] = np.asarray(LEGACY_CONFIG.problem.sigma_t, dtype=float)
+myXS["sigs"] = np.asarray(LEGACY_CONFIG.problem.sigma_s, dtype=float)
 
 # Define a dictionary with the source terms in each region and with the b.c. for each direction:
 mySRC = {}
@@ -87,48 +96,26 @@ def initialize_production_problem():
     global _PRODUCTION_INITIALIZED
 
     if not _PRODUCTION_INITIALIZED:
-        myAQ = AQ(ndir)
-        myMESH = MESH(width, n_ref)
-        myFLX = FLXSLV(myAQ, myMESH, myXS, mySRC)
-
-        xx = np.concatenate(
-            [[myMESH.x[ii], myMESH.x[ii]] for ii in range(len(myMESH.x))]
-        )[1:-1]
-
-        directAbsorption = myFLX.assemble_global_mass_matrix(myXS["sigt"])
-        globalAbsorption = sparse.kron(
-            np.eye(ndir), directAbsorption, format="csc"
-        )
-
-        directScattering = myFLX.assemble_global_mass_matrix(myXS["sigs"])
-        globalScattering = sparse.kron(
-            np.tile(myAQ.w_q, (ndir, 1)), directScattering, format="csc"
-        )
-
-        directMM = myFLX.assemble_global_mass_matrix(np.ones(len(width)))
-        globalMM = sparse.kron(np.eye(ndir), directMM, format="csc")
-        globalInverseMass = sparse.kron(
-            np.eye(ndir), sparse.linalg.inv(directMM), format="csc"
-        )
-        globalStreaming, gobalBD = myFLX.assemble_global_grad_matrix(
-            np.ones(ndir)
-        )
-
-        globalFF = globalStreaming + globalAbsorption - globalScattering
+        configured_problem = build_problem(LEGACY_CONFIG)
+        configured_operators = assemble_operators(configured_problem)
+        myAQ = configured_problem.quadrature
+        myMESH = configured_problem.mesh
+        myFLX = configured_operators.solver
+        xx = configured_problem.dof_coordinates
+        directAbsorption = configured_operators.spatial_total_interaction
+        globalAbsorption = configured_operators.total_interaction
+        directScattering = configured_operators.spatial_scattering
+        globalScattering = configured_operators.scattering
+        directMM = configured_operators.spatial_mass
+        globalMM = configured_operators.mass
+        globalInverseMass = configured_operators.inverse_mass
+        globalStreaming = configured_operators.streaming
+        gobalBD = configured_operators.boundary_inflow_matrix
+        globalFF = configured_operators.system
         globalZZ = sparse.csc_matrix(globalMM.shape)
-        globalRB = gobalBD.dot(
-            np.array([1.0 * (ii == (ndir - 1)) for ii in range(ndir)])
-        )
-
-        idx = lambda ii: np.ix_([2 * ii, 2 * ii + 1], [2 * ii, 2 * ii + 1])
-        globalMMsqrt = copy.deepcopy(globalMM)
-        for ii in range(globalMM.shape[0] // 2):
-            globalMMsqrt[idx(ii)] = sp.linalg.fractional_matrix_power(
-                globalMM[idx(ii)].todense(), 1 / 2
-            )
-        globalMMinv = copy.deepcopy(globalMM)
-        for ii in range(globalMM.shape[0] // 2):
-            globalMMinv[idx(ii)] = np.linalg.inv(globalMM[idx(ii)].todense())
+        globalRB = configured_operators.boundary_source
+        globalMMsqrt = mass_matrix_square_root(configured_operators)
+        globalMMinv = mass_matrix_block_inverse(configured_operators)
 
         _PRODUCTION_INITIALIZED = True
 
@@ -259,14 +246,8 @@ def validate_solve_ivp_result(
 
 def make_production_initial_condition(dof_coordinates):
     """Construct the preserved localized-sigmoid production initial condition."""
-    dof_coordinates = np.asarray(dof_coordinates)
-    return np.concatenate(
-        [
-            0 * dof_coordinates,
-            0 * dof_coordinates,
-            0 * dof_coordinates,
-            1 - 1 / (1 + np.exp(-100 * (dof_coordinates - 0.1))),
-        ]
+    return construct_initial_condition_values(
+        LEGACY_CONFIG, np.asarray(dof_coordinates)
     )
 
 
@@ -277,9 +258,9 @@ def solve_transport(
     qext_func=None,
     psi_bc_func=None,
     n_output_times=1001,
-    method="Radau",
-    atol=1e-9,
-    rtol=1e-12,
+    method=FOM_METHOD,
+    atol=FOM_ATOL,
+    rtol=FOM_RTOL,
     evaluation_times=None,
 ):
     initialize_production_problem()

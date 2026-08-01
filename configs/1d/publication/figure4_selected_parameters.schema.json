@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Author-approved Figure 4 selected parameters",
+  "type": "object",
+  "required": ["schema_version", "catalog_checksum", "selection_objective", "search_result_provenance", "author_approval", "cases"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "catalog_checksum": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "selection_objective": {"type": "string", "minLength": 1},
+    "search_result_provenance": {"type": "object"},
+    "author_approval": {"type": "object"},
+    "cases": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["gamma"],
+        "properties": {
+          "gamma": {"type": "number", "minimum": 0},
+          "lambda_L": {"type": ["number", "null"], "minimum": 0},
+          "lambda_Q": {"type": ["number", "null"], "minimum": 0}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

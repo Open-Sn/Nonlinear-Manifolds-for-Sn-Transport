@@ -73,6 +73,10 @@ The [organized, configuration-driven 1-D workflow](docs/1d_workflow.md)
 documents the reusable interfaces and safe dry-run commands. Historical
 root-level commands remain available with unchanged defaults.
 
+The separate [sigmoid-based publication experiment workflow](docs/1d_publication_workflow.md)
+catalogs paper-oriented cases and provenance requirements without running the
+production calculation or claiming numerical reproduction.
+
 ---
 
 ## Configuration

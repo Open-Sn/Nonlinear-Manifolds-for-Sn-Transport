@@ -1,0 +1,574 @@
+{
+  "schema_version": "1.0.0",
+  "catalog_title": "Sigmoid-based 1D publication experiment catalog",
+  "benchmark_policy": {
+    "benchmark_variant": "legacy_sigmoid",
+    "base_configuration_path": "configs/1d/legacy_production.json",
+    "base_configuration_checksum": "cc442174134332f4b722cfa65ef179e1abc350c3e27e342a8bfeb184aa1b2759",
+    "required_input_snapshot": "solutionDG1_A4_T10_Nt10001_Nx750_continuous_bis.npy",
+    "sigmoid_formula": "1 - 1 / (1 + exp(-100 * (x - 0.1)))",
+    "manuscript_deviation": {
+      "initial_condition": {
+        "paper": "zero angular flux",
+        "repository": "localized sigmoid in final angular block",
+        "status": "intentional_repository_deviation"
+      }
+    }
+  },
+  "cases": [
+    {
+      "case_id": "fig1_pod_reducibility",
+      "figure": "Figure 1",
+      "purpose": "POD reducibility and unresolved-energy study",
+      "title": "POD unresolved energy for the legacy sigmoid benchmark",
+      "base_configuration_path": "configs/1d/legacy_production.json",
+      "base_configuration_checksum": "cc442174134332f4b722cfa65ef179e1abc350c3e27e342a8bfeb184aa1b2759",
+      "benchmark_variant": "legacy_sigmoid",
+      "manuscript_deviation": {
+        "initial_condition": {
+          "paper": "zero angular flux",
+          "repository": "localized sigmoid in final angular block",
+          "status": "intentional_repository_deviation"
+        }
+      },
+      "model_type": "pod_analysis",
+      "operator_construction": null,
+      "latent_dimension": 16,
+      "lifting_dimension": 548,
+      "lifting_regularization_gamma": null,
+      "lambda_L": null,
+      "lambda_Q": null,
+      "inference_tolerance": null,
+      "maximum_iterations": null,
+      "training_interval": [0.0, 7.5],
+      "steady_state_centering": true,
+      "parameter_sweep": {
+        "maximum_total_basis_dimension": 564,
+        "highlighted_latent_dimension": 16,
+        "highlighted_lifting_dimension": 548,
+        "highlighted_total_dimension": 564
+      },
+      "required_input_snapshot": "solutionDG1_A4_T10_Nt10001_Nx750_continuous_bis.npy",
+      "requested_outputs": [
+        "POD eigenvalues",
+        "retained-energy fraction",
+        "unresolved-energy fraction",
+        "basis dimensions",
+        "run and dataset provenance",
+        "benchmark-variant metadata"
+      ],
+      "expected_artifact_names": [
+        "data/pod_spectrum.npz",
+        "metrics.json",
+        "diagnostics.json"
+      ],
+      "specification_status": "fully_specified",
+      "missing_information": [],
+      "execution_allowed": true,
+      "reported_manuscript_metadata": {
+        "figure": 1,
+        "total_retained_basis_dimension": 564,
+        "highlighted_N_r": 16,
+        "highlighted_N_q": 548
+      },
+      "notes": [
+        "Uses steady-state-centered snapshots from the inclusive training interval [0, 7.5].",
+        "No production POD spectrum is generated during catalog construction."
+      ],
+      "provenance": {
+        "parameter_source": "publication experiment specification supplied for Phase 4",
+        "benchmark_source": "configs/1d/legacy_production.json"
+      }
+    },
+    {
+      "case_id": "fig2_linear_projected",
+      "figure": "Figure 2",
+      "purpose": "Projection-based field and instantaneous-error comparison",
+      "title": "Linear projected ROM",
+      "base_configuration_path": "configs/1d/legacy_production.json",
+      "base_configuration_checksum": "cc442174134332f4b722cfa65ef179e1abc350c3e27e342a8bfeb184aa1b2759",
+      "benchmark_variant": "legacy_sigmoid",
+      "manuscript_deviation": {
+        "initial_condition": {
+          "paper": "zero angular flux",
+          "repository": "localized sigmoid in final angular block",
+          "status": "intentional_repository_deviation"
+        }
+      },
+      "model_type": "linear",
+      "operator_construction": "projected",
+      "latent_dimension": 16,
+      "lifting_dimension": null,
+      "lifting_regularization_gamma": null,
+      "lambda_L": null,
+      "lambda_Q": null,
+      "inference_tolerance": null,
+      "maximum_iterations": null,
+      "training_interval": [0.0, 7.5],
+      "steady_state_centering": true,
+      "parameter_sweep": null,
+      "required_input_snapshot": "solutionDG1_A4_T10_Nt10001_Nx750_continuous_bis.npy",
+      "requested_outputs": [
+        "reconstructed angular flux at t=2.5",
+        "discrepancy field at t=2.5",
+        "instantaneous normalized error history over [0,10]",
+        "training boundary at t=7.5",
+        "solver diagnostics",
+        "benchmark and deviation metadata"
+      ],
+      "expected_artifact_names": [
+        "data/fields.npz",
+        "data/error_history.npz",
+        "metrics.json",
+        "diagnostics.json"
+      ],
+      "specification_status": "fully_specified",
+      "missing_information": [],
+      "execution_allowed": true,
+      "reported_manuscript_metadata": {"figure": 2, "field_time": 2.5},
+      "notes": ["N_q and nonlinear regularization are not applicable to the linear model."],
+      "provenance": {
+        "parameter_source": "Figure 2 values supplied for Phase 4",
+        "benchmark_source": "configs/1d/legacy_production.json"
+      }
+    },
+    {
+      "case_id": "fig2_elementwise_projected",
+      "figure": "Figure 2",
+      "purpose": "Projection-based field and instantaneous-error comparison",
+      "title": "Elementwise quadratic projected ROM",
+      "base_configuration_path": "configs/1d/legacy_production.json",
+      "base_configuration_checksum": "cc442174134332f4b722cfa65ef179e1abc350c3e27e342a8bfeb184aa1b2759",
+      "benchmark_variant": "legacy_sigmoid",
+      "manuscript_deviation": {
+        "initial_condition": {
+          "paper": "zero angular flux",
+          "repository": "localized sigmoid in final angular block",
+          "status": "intentional_repository_deviation"
+        }
+      },
+      "model_type": "elementwise",
+      "operator_construction": "projected",
+      "latent_dimension": 16,
+      "lifting_dimension": 548,
+      "lifting_regularization_gamma": 6.4e-06,
+      "lambda_L": null,
+      "lambda_Q": null,
+      "inference_tolerance": null,
+      "maximum_iterations": null,
+      "training_interval": [0.0, 7.5],
+      "steady_state_centering": true,
+      "parameter_sweep": null,
+      "required_input_snapshot": "solutionDG1_A4_T10_Nt10001_Nx750_continuous_bis.npy",
+      "requested_outputs": [
+        "reconstructed angular flux at t=2.5",
+        "discrepancy field at t=2.5",
+        "instantaneous normalized error history over [0,10]",
+        "training boundary at t=7.5",
+        "solver diagnostics",
+        "benchmark and deviation metadata"
+      ],
+      "expected_artifact_names": [
+        "data/fields.npz",
+        "data/error_history.npz",
+        "metrics.json",
+        "diagnostics.json"
+      ],
+      "specification_status": "fully_specified",
+      "missing_information": [],
+      "execution_allowed": true,
+      "reported_manuscript_metadata": {"figure": 2, "field_time": 2.5, "gamma_expression": "64 x 10^-7"},
+      "notes": ["Inference regularization is intentionally absent from this projected case."],
+      "provenance": {
+        "parameter_source": "Figure 2 values supplied for Phase 4",
+        "benchmark_source": "configs/1d/legacy_production.json"
+      }
+    },
+    {
+      "case_id": "fig2_tensorial_projected",
+      "figure": "Figure 2",
+      "purpose": "Projection-based field and instantaneous-error comparison",
+      "title": "Tensorial quadratic projected ROM",
+      "base_configuration_path": "configs/1d/legacy_production.json",
+      "base_configuration_checksum": "cc442174134332f4b722cfa65ef179e1abc350c3e27e342a8bfeb184aa1b2759",
+      "benchmark_variant": "legacy_sigmoid",
+      "manuscript_deviation": {
+        "initial_condition": {
+          "paper": "zero angular flux",
+          "repository": "localized sigmoid in final angular block",
+          "status": "intentional_repository_deviation"
+        }
+      },
+      "model_type": "tensorial",
+      "operator_construction": "projected",
+      "latent_dimension": 16,
+      "lifting_dimension": 548,
+      "lifting_regularization_gamma": 2.5e-06,
+      "lambda_L": null,
+      "lambda_Q": null,
+      "inference_tolerance": null,
+      "maximum_iterations": null,
+      "training_interval": [0.0, 7.5],
+      "steady_state_centering": true,
+      "parameter_sweep": null,
+      "required_input_snapshot": "solutionDG1_A4_T10_Nt10001_Nx750_continuous_bis.npy",
+      "requested_outputs": [
+        "reconstructed angular flux at t=2.5",
+        "discrepancy field at t=2.5",
+        "instantaneous normalized error history over [0,10]",
+        "training boundary at t=7.5",
+        "solver diagnostics",
+        "benchmark and deviation metadata"
+      ],
+      "expected_artifact_names": [
+        "data/fields.npz",
+        "data/error_history.npz",
+        "metrics.json",
+        "diagnostics.json"
+      ],
+      "specification_status": "fully_specified",
+      "missing_information": [],
+      "execution_allowed": true,
+      "reported_manuscript_metadata": {"figure": 2, "field_time": 2.5, "gamma": 2.5e-06},
+      "notes": ["Inference regularization is intentionally absent from this projected case."],
+      "provenance": {
+        "parameter_source": "Figure 2 values supplied for Phase 4",
+        "benchmark_source": "configs/1d/legacy_production.json"
+      }
+    },
+    {
+      "case_id": "fig3_linear_inferred",
+      "figure": "Figure 3",
+      "purpose": "Operator-inferred field and instantaneous-error comparison",
+      "title": "Linear inferred ROM",
+      "base_configuration_path": "configs/1d/legacy_production.json",
+      "base_configuration_checksum": "cc442174134332f4b722cfa65ef179e1abc350c3e27e342a8bfeb184aa1b2759",
+      "benchmark_variant": "legacy_sigmoid",
+      "manuscript_deviation": {
+        "initial_condition": {
+          "paper": "zero angular flux",
+          "repository": "localized sigmoid in final angular block",
+          "status": "intentional_repository_deviation"
+        }
+      },
+      "model_type": "linear",
+      "operator_construction": "inferred",
+      "latent_dimension": 16,
+      "lifting_dimension": null,
+      "lifting_regularization_gamma": null,
+      "lambda_L": 0.0,
+      "lambda_Q": null,
+      "inference_tolerance": 1.0e-06,
+      "maximum_iterations": 100000,
+      "training_interval": [0.0, 7.5],
+      "steady_state_centering": true,
+      "parameter_sweep": null,
+      "required_input_snapshot": "solutionDG1_A4_T10_Nt10001_Nx750_continuous_bis.npy",
+      "requested_outputs": [
+        "reconstructed angular flux at t=2.5",
+        "discrepancy field at t=2.5",
+        "instantaneous normalized error history over [0,10]",
+        "training boundary at t=7.5",
+        "solver and inference diagnostics",
+        "benchmark and deviation metadata"
+      ],
+      "expected_artifact_names": [
+        "data/fields.npz",
+        "data/error_history.npz",
+        "metrics.json",
+        "diagnostics.json"
+      ],
+      "specification_status": "fully_specified",
+      "missing_information": [],
+      "execution_allowed": true,
+      "reported_manuscript_metadata": {"figure": 3, "field_time": 2.5},
+      "notes": ["Linear inference uses lambda_L=0 from the preserved implementation provenance; gamma and lambda_Q are not applicable."],
+      "provenance": {
+        "parameter_source": "Figure 3 values and preserved linear inference value supplied for Phase 4",
+        "benchmark_source": "configs/1d/legacy_production.json"
+      }
+    },
+    {
+      "case_id": "fig3_elementwise_inferred",
+      "figure": "Figure 3",
+      "purpose": "Operator-inferred field and instantaneous-error comparison",
+      "title": "Elementwise quadratic inferred ROM",
+      "base_configuration_path": "configs/1d/legacy_production.json",
+      "base_configuration_checksum": "cc442174134332f4b722cfa65ef179e1abc350c3e27e342a8bfeb184aa1b2759",
+      "benchmark_variant": "legacy_sigmoid",
+      "manuscript_deviation": {
+        "initial_condition": {
+          "paper": "zero angular flux",
+          "repository": "localized sigmoid in final angular block",
+          "status": "intentional_repository_deviation"
+        }
+      },
+      "model_type": "elementwise",
+      "operator_construction": "inferred",
+      "latent_dimension": 16,
+      "lifting_dimension": 548,
+      "lifting_regularization_gamma": 6.4e-06,
+      "lambda_L": 0.0,
+      "lambda_Q": 2.56e-05,
+      "inference_tolerance": 1.0e-06,
+      "maximum_iterations": 100000,
+      "training_interval": [0.0, 7.5],
+      "steady_state_centering": true,
+      "parameter_sweep": null,
+      "required_input_snapshot": "solutionDG1_A4_T10_Nt10001_Nx750_continuous_bis.npy",
+      "requested_outputs": [
+        "reconstructed angular flux at t=2.5",
+        "discrepancy field at t=2.5",
+        "instantaneous normalized error history over [0,10]",
+        "training boundary at t=7.5",
+        "solver and inference diagnostics",
+        "benchmark and deviation metadata"
+      ],
+      "expected_artifact_names": [
+        "data/fields.npz",
+        "data/error_history.npz",
+        "metrics.json",
+        "diagnostics.json"
+      ],
+      "specification_status": "fully_specified",
+      "missing_information": [],
+      "execution_allowed": true,
+      "reported_manuscript_metadata": {
+        "figure": 3,
+        "field_time": 2.5,
+        "lambda_Q_expression": "256 x 10^-7",
+        "reported_inference_iterations": 23367,
+        "iteration_count_role": "manuscript_metadata_only"
+      },
+      "notes": ["The reported iteration count is metadata, not a stopping target or regression assertion."],
+      "provenance": {
+        "parameter_source": "Figure 3 values supplied for Phase 4",
+        "benchmark_source": "configs/1d/legacy_production.json"
+      }
+    },
+    {
+      "case_id": "fig3_tensorial_inferred",
+      "figure": "Figure 3",
+      "purpose": "Operator-inferred field and instantaneous-error comparison",
+      "title": "Tensorial quadratic inferred ROM",
+      "base_configuration_path": "configs/1d/legacy_production.json",
+      "base_configuration_checksum": "cc442174134332f4b722cfa65ef179e1abc350c3e27e342a8bfeb184aa1b2759",
+      "benchmark_variant": "legacy_sigmoid",
+      "manuscript_deviation": {
+        "initial_condition": {
+          "paper": "zero angular flux",
+          "repository": "localized sigmoid in final angular block",
+          "status": "intentional_repository_deviation"
+        }
+      },
+      "model_type": "tensorial",
+      "operator_construction": "inferred",
+      "latent_dimension": 16,
+      "lifting_dimension": 548,
+      "lifting_regularization_gamma": 2.5e-06,
+      "lambda_L": 0.0,
+      "lambda_Q": 1.6e-06,
+      "inference_tolerance": 1.0e-06,
+      "maximum_iterations": 100000,
+      "training_interval": [0.0, 7.5],
+      "steady_state_centering": true,
+      "parameter_sweep": null,
+      "required_input_snapshot": "solutionDG1_A4_T10_Nt10001_Nx750_continuous_bis.npy",
+      "requested_outputs": [
+        "reconstructed angular flux at t=2.5",
+        "discrepancy field at t=2.5",
+        "instantaneous normalized error history over [0,10]",
+        "training boundary at t=7.5",
+        "solver and inference diagnostics",
+        "benchmark and deviation metadata"
+      ],
+      "expected_artifact_names": [
+        "data/fields.npz",
+        "data/error_history.npz",
+        "metrics.json",
+        "diagnostics.json"
+      ],
+      "specification_status": "fully_specified",
+      "missing_information": [],
+      "execution_allowed": true,
+      "reported_manuscript_metadata": {
+        "figure": 3,
+        "field_time": 2.5,
+        "lambda_Q_expression": "16 x 10^-7",
+        "reported_inference_iterations": 868,
+        "iteration_count_role": "manuscript_metadata_only"
+      },
+      "notes": ["The reported iteration count is metadata, not a stopping target or regression assertion."],
+      "provenance": {
+        "parameter_source": "Figure 3 values supplied for Phase 4",
+        "benchmark_source": "configs/1d/legacy_production.json"
+      }
+    },
+    {
+      "case_id": "fig5_projected_nq_sweep",
+      "figure": "Figure 5",
+      "purpose": "Lifting-dimension convergence, projection benchmark, runtime, and speed-up study",
+      "title": "Projected Figure 5 N_q comparison study",
+      "base_configuration_path": "configs/1d/legacy_production.json",
+      "base_configuration_checksum": "cc442174134332f4b722cfa65ef179e1abc350c3e27e342a8bfeb184aa1b2759",
+      "benchmark_variant": "legacy_sigmoid",
+      "manuscript_deviation": {
+        "initial_condition": {
+          "paper": "zero angular flux",
+          "repository": "localized sigmoid in final angular block",
+          "status": "intentional_repository_deviation"
+        }
+      },
+      "model_type": "comparison_study",
+      "operator_construction": "projected",
+      "latent_dimension": 32,
+      "lifting_dimension": null,
+      "lifting_regularization_gamma": null,
+      "lambda_L": null,
+      "lambda_Q": null,
+      "inference_tolerance": null,
+      "maximum_iterations": null,
+      "training_interval": [0.0, 7.5],
+      "steady_state_centering": true,
+      "parameter_sweep": {
+        "lifting_dimensions": [1, 2, 4, 8, 16, 32, 64, 128],
+        "series": {
+          "fixed_rank_linear": {"model_type": "linear", "dimension": 32},
+          "elementwise_quadratic": {"model_type": "elementwise", "lifting_regularization_gamma": 8e-07},
+          "tensorial_quadratic": {"model_type": "tensorial", "lifting_regularization_gamma": 2.5e-08},
+          "enlarged_linear": {"model_type": "linear", "dimension": "32 + N_q"},
+          "M_orthogonal_best_projection": {"model_type": "projection_benchmark", "dimension": "32 + N_q", "mass_convention": "preserved M inner product without angular weights"}
+        }
+      },
+      "required_input_snapshot": "solutionDG1_A4_T10_Nt10001_Nx750_continuous_bis.npy",
+      "requested_outputs": [
+        "time-aggregated relative convergence metric",
+        "online runtime",
+        "online speed-up",
+        "projection benchmark",
+        "model dimensions",
+        "ODE function-evaluation counts",
+        "complete provenance"
+      ],
+      "expected_artifact_names": ["data/convergence_data.npz", "metrics.json", "diagnostics.json"],
+      "specification_status": "requires_author_input",
+      "missing_information": [
+        "exact time-aggregated convergence metric definition",
+        "publication-comparable online timing stage classification"
+      ],
+      "execution_allowed": false,
+      "reported_manuscript_metadata": {"figure": 5, "fixed_N_r": 32},
+      "notes": ["Projected cases do not use lambda_L or lambda_Q."],
+      "provenance": {
+        "parameter_source": "Figure 5 values supplied for Phase 4",
+        "benchmark_source": "configs/1d/legacy_production.json"
+      }
+    },
+    {
+      "case_id": "fig5_inferred_nq_sweep",
+      "figure": "Figure 5",
+      "purpose": "Lifting-dimension convergence, projection benchmark, runtime, and speed-up study",
+      "title": "Inferred Figure 5 N_q comparison study",
+      "base_configuration_path": "configs/1d/legacy_production.json",
+      "base_configuration_checksum": "cc442174134332f4b722cfa65ef179e1abc350c3e27e342a8bfeb184aa1b2759",
+      "benchmark_variant": "legacy_sigmoid",
+      "manuscript_deviation": {
+        "initial_condition": {
+          "paper": "zero angular flux",
+          "repository": "localized sigmoid in final angular block",
+          "status": "intentional_repository_deviation"
+        }
+      },
+      "model_type": "comparison_study",
+      "operator_construction": "inferred",
+      "latent_dimension": 32,
+      "lifting_dimension": null,
+      "lifting_regularization_gamma": null,
+      "lambda_L": null,
+      "lambda_Q": null,
+      "inference_tolerance": 1.0e-06,
+      "maximum_iterations": 100000,
+      "training_interval": [0.0, 7.5],
+      "steady_state_centering": true,
+      "parameter_sweep": {
+        "lifting_dimensions": [1, 2, 4, 8, 16, 32, 64, 128],
+        "series": {
+          "fixed_rank_linear": {"model_type": "linear", "dimension": 32, "inference_regularization": {"lambda_L": 0.0}},
+          "elementwise_quadratic": {"model_type": "elementwise", "lifting_regularization_gamma": 8e-07, "inference_regularization": {"lambda_L": 0.0, "lambda_Q": 8e-07}},
+          "tensorial_quadratic": {"model_type": "tensorial", "lifting_regularization_gamma": 2.5e-08, "inference_regularization": {"lambda_L": 0.0, "lambda_Q": 4e-07}},
+          "enlarged_linear": {"model_type": "linear", "dimension": "32 + N_q", "inference_regularization": {"lambda_L": 0.0}},
+          "M_orthogonal_best_projection": {"model_type": "projection_benchmark", "dimension": "32 + N_q", "mass_convention": "preserved M inner product without angular weights"}
+        }
+      },
+      "required_input_snapshot": "solutionDG1_A4_T10_Nt10001_Nx750_continuous_bis.npy",
+      "requested_outputs": [
+        "time-aggregated relative convergence metric",
+        "online runtime",
+        "online speed-up",
+        "projection benchmark",
+        "model dimensions",
+        "ODE function-evaluation counts",
+        "complete provenance"
+      ],
+      "expected_artifact_names": ["data/convergence_data.npz", "metrics.json", "diagnostics.json"],
+      "specification_status": "requires_author_input",
+      "missing_information": [
+        "exact time-aggregated convergence metric definition",
+        "publication-comparable online timing stage classification"
+      ],
+      "execution_allowed": false,
+      "reported_manuscript_metadata": {"figure": 5, "fixed_N_r": 32},
+      "notes": ["Inference regularization is attached only to inferred model series."],
+      "provenance": {
+        "parameter_source": "Figure 5 values supplied for Phase 4",
+        "benchmark_source": "configs/1d/legacy_production.json"
+      }
+    }
+  ],
+  "figure4_case_family": {
+    "purpose": "Latent-dimension convergence and speed-up study",
+    "base_configuration_path": "configs/1d/legacy_production.json",
+    "base_configuration_checksum": "cc442174134332f4b722cfa65ef179e1abc350c3e27e342a8bfeb184aa1b2759",
+    "benchmark_variant": "legacy_sigmoid",
+    "manuscript_deviation": {
+      "initial_condition": {
+        "paper": "zero angular flux",
+        "repository": "localized sigmoid in final angular block",
+        "status": "intentional_repository_deviation"
+      }
+    },
+    "model_types": ["linear", "elementwise", "tensorial"],
+    "operator_constructions": ["projected", "inferred"],
+    "latent_dimensions": [8, 16, 24, 32, 40, 48, 56, 64],
+    "total_dimension": 564,
+    "gamma_candidate_range": [7e-10, 5e-05],
+    "lambda_Q_candidate_range": [6e-09, 0.0002],
+    "selected_parameter_file_schema": "configs/1d/publication/figure4_selected_parameters.schema.json",
+    "training_interval": [0.0, 7.5],
+    "required_input_snapshot": "solutionDG1_A4_T10_Nt10001_Nx750_continuous_bis.npy",
+    "requested_outputs": [
+      "time-aggregated relative convergence metric",
+      "online runtime",
+      "online speed-up",
+      "model dimensions",
+      "ODE function-evaluation counts",
+      "complete provenance"
+    ],
+    "expected_artifact_names": ["data/convergence_data.npz", "metrics.json", "diagnostics.json"],
+    "reported_manuscript_metadata": {
+      "figure": 4,
+      "gamma_search_range": [7e-10, 5e-05],
+      "lambda_Q_search_range": [6e-09, 0.0002],
+      "lambda_L": 0.0,
+      "selected_values_published_for_every_case": false
+    },
+    "notes": [
+      "Candidate ranges are recorded, but no best values are selected by this catalog.",
+      "Execution is refused until selected values and the convergence metric are author supplied."
+    ],
+    "provenance": {
+      "parameter_source": "Figure 4 values and limitations supplied for Phase 4",
+      "benchmark_source": "configs/1d/legacy_production.json"
+    }
+  }
+}

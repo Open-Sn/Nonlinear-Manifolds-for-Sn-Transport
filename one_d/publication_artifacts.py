@@ -224,6 +224,12 @@ def create_publication_run_directory(
         },
         "experiment_catalog_path": str(catalog.source_path),
         "experiment_catalog_checksum": catalog.checksum(),
+        "case_definition_checksum_sha256": hashlib.sha256(
+            json.dumps(
+                case.to_dict(), sort_keys=True, separators=(",", ":"), allow_nan=False
+            ).encode("utf-8")
+        ).hexdigest(),
+        "resolved_configuration_checksum_sha256": config.checksum(),
         "base_configuration_path": case.base_configuration_path,
         "base_configuration_checksum": case.base_configuration_checksum,
         "benchmark_variant": case.benchmark_variant,
@@ -522,6 +528,7 @@ def execute_publication_case(
     output_root: str | Path = "results/1d/publication",
     run_directory: str | Path | None = None,
     run_id: str | None = None,
+    shared_offline_directory: str | Path | None = None,
 ) -> PublicationRunDirectory:
     """Execute one fully specified case; imports scientific stages only after guards."""
     if not execute:
@@ -556,22 +563,54 @@ def execute_publication_case(
         output_root=output_root,
         run_directory=run_directory,
     )
+    shared = None
+    if shared_offline_directory is not None:
+        from .shared_offline import load_shared_offline_artifacts
+
+        shared = load_shared_offline_artifacts(
+            shared_offline_directory,
+            base_config,
+            dataset_sha256=checksum,
+        )
+        manifest = _read_json(run.manifest_path)
+        manifest["shared_offline"] = {
+            "path": str(shared.root),
+            "manifest_sha256": sha256_file(shared.root / "manifest.json"),
+            "dataset_sha256": checksum,
+            "reused_derivatives": True,
+            "reused_pod_svd": True,
+        }
+        _write_json(run.manifest_path, manifest)
     started = time.perf_counter()
     try:
         if case.model_type == "pod_analysis":
-            _execute_pod_case(run, config, snapshot_path)
+            if shared is None:
+                _execute_pod_case(run, config, snapshot_path)
+            else:
+                _execute_pod_case_from_shared(run, config, shared)
         else:
-            _execute_rom_case(run, case, config, snapshot_path)
+            if shared is None:
+                _execute_rom_case(run, case, config, snapshot_path)
+            else:
+                _execute_rom_case_from_shared(
+                    run,
+                    case,
+                    config,
+                    snapshot_path,
+                    shared,
+                )
         elapsed = time.perf_counter() - started
-        timing = {
-            "online_runtime_seconds": None,
-            "offline_runtime_seconds": None,
-            "total_runtime_seconds": elapsed,
-            "speedup_basis": None,
-            "included_stages": ["combined publication case pipeline"],
-            "excluded_stages": [],
-            "classification": "combined_total_only_not_publication_speedup",
-        }
+        timing = None
+        if shared is None:
+            timing = {
+                "online_runtime_seconds": None,
+                "offline_runtime_seconds": None,
+                "total_runtime_seconds": elapsed,
+                "speedup_basis": None,
+                "included_stages": ["combined publication case pipeline"],
+                "excluded_stages": [],
+                "classification": "combined_total_only_not_publication_speedup",
+            }
         update_publication_run(
             run,
             solver={"status": "completed", "success": True, "message": None},
@@ -626,19 +665,80 @@ def _execute_pod_case(
     )
 
 
+def _execute_pod_case_from_shared(
+    run: PublicationRunDirectory,
+    config: OneDConfig,
+    shared: Any,
+) -> None:
+    started = time.perf_counter()
+    curves = pod_energy_curves(shared.singular_values)
+    write_npz_artifact(
+        run,
+        "pod_spectrum.npz",
+        {
+            "pod_eigenvalues": curves.eigenvalues,
+            "retained_energy_fraction": curves.retained_energy_fraction,
+            "unresolved_energy_fraction": curves.unresolved_energy_fraction,
+            "basis_dimensions": curves.basis_dimensions,
+            "highlighted_latent_dimension": np.asarray([16], dtype=int),
+            "highlighted_lifting_dimension": np.asarray([548], dtype=int),
+            "highlighted_total_dimension": np.asarray([564], dtype=int),
+        },
+    )
+    elapsed = time.perf_counter() - started
+    update_publication_run(
+        run,
+        metrics={
+            "maximum_total_basis_dimension": 564,
+            "highlighted_N_r": 16,
+            "highlighted_N_q": 548,
+            "retained_energy_at_N_r": float(curves.retained_energy_fraction[15]),
+            "unresolved_energy_at_N_r": float(curves.unresolved_energy_fraction[15]),
+            "retained_energy_at_total_dimension": float(
+                curves.retained_energy_fraction[563]
+            ),
+            "unresolved_energy_at_total_dimension": float(
+                curves.unresolved_energy_fraction[563]
+            ),
+        },
+        diagnostics={
+            "training_snapshot_count": int(shared.training_indices.size),
+            "steady_state_centering": True,
+            "shared_pod_reused": True,
+        },
+        timing={
+            "online_runtime_seconds": None,
+            "offline_runtime_seconds": elapsed,
+            "total_runtime_seconds": elapsed,
+            "speedup_basis": None,
+            "included_stages": ["shared POD spectrum extraction and artifact write"],
+            "excluded_stages": [
+                "production FOM",
+                "shared derivative computation",
+                "shared full POD SVD",
+            ],
+            "classification": "artifact_extraction_only_not_publication_speedup",
+        },
+    )
 def _execute_rom_case(
     run: PublicationRunDirectory,
     case: PublicationCase,
     config: OneDConfig,
     snapshot_path: Path,
 ) -> None:
-    from .rom import run_selected_rom
+    from .fom import build_time_array
+    from .rom import partition_time_indices, run_selected_rom
+
+    training_indices, _ = partition_time_indices(
+        build_time_array(config), config.time.training_end_time
+    )
 
     result = run_selected_rom(
         config,
         str(snapshot_path),
         model_name=case.model_type,
         operator_choice=str(case.operator_construction),
+        regularization_scale=float(training_indices.size),
     )
     target_time = 2.5
     index = int(round((target_time - config.time.initial_time) / config.time.output_spacing))
@@ -682,6 +782,294 @@ def _execute_rom_case(
     )
 
 
+def _execute_rom_case_from_shared(
+    run: PublicationRunDirectory,
+    case: PublicationCase,
+    config: OneDConfig,
+    snapshot_path: Path,
+    shared: Any,
+) -> None:
+    from .rom import (
+        construct_inferred_operators,
+        construct_nonlinear_lifting,
+        construct_projected_operators,
+        initialize_rom_context_from_precomputed,
+        integrate_selected_rom,
+        reconstruct_and_compute_errors_chunked,
+        regularization_diagnostics,
+    )
+    from Nonlinear_Manifold_ROM import ReducedIntegrationError
+
+    snapshot = np.load(snapshot_path, mmap_mode="r", allow_pickle=False)
+    context = initialize_rom_context_from_precomputed(
+        config,
+        snapshot,
+        steady_state=shared.steady_state,
+        time=shared.time,
+        training_indices=shared.training_indices,
+        extrapolation_indices=shared.extrapolation_indices,
+        derivatives=shared.derivatives,
+        basis=shared.basis,
+        singular_values=shared.singular_values,
+        coefficients=shared.coefficients,
+        model_name=case.model_type,
+        operator_choice=str(case.operator_construction),
+    )
+    case_started = time.perf_counter()
+    regularization_scale = float(context.training_indices.size)
+    regularization = regularization_diagnostics(
+        context, regularization_scale=regularization_scale
+    )
+    lifting_started = time.perf_counter()
+    construct_nonlinear_lifting(
+        context, regularization_scale=regularization_scale
+    )
+    lifting_seconds = time.perf_counter() - lifting_started
+
+    projection_started = time.perf_counter()
+    construct_projected_operators(context)
+    projection_seconds = time.perf_counter() - projection_started
+
+    inference_seconds = 0.0
+    if context.operator_choice == "inferred":
+        inference_started = time.perf_counter()
+        try:
+            construct_inferred_operators(
+                context, regularization_scale=regularization_scale
+            )
+        except Exception:
+            inference_seconds = time.perf_counter() - inference_started
+            update_publication_run(
+                run,
+                diagnostics={
+                    "shared_offline_reused": True,
+                    "inference": context.model.inference_diagnostics,
+                    "inference_elapsed_seconds": inference_seconds,
+                    "regularization": regularization,
+                },
+            )
+            raise
+        inference_seconds = time.perf_counter() - inference_started
+
+    initial_started = time.perf_counter()
+    context.model.compute_initial_conditions()
+    initial_seconds = time.perf_counter() - initial_started
+    initial = np.asarray(context.model.initial_condition)
+    if context.model_name == "linear":
+        initial_fit_residual = float(
+            np.linalg.norm(context.model.pod_global_coeff[:, 0] - initial)
+        )
+    else:
+        lifted_initial = np.concatenate(
+            (
+                initial,
+                context.model.nonlinear_lift_matrix
+                @ context.model.nonlinear_function(initial),
+            )
+        )
+        initial_fit_residual = float(
+            np.linalg.norm(context.model.pod_global_coeff[:, 0] - lifted_initial)
+        )
+
+    online_started = time.perf_counter()
+    try:
+        integration = integrate_selected_rom(context)
+    except ReducedIntegrationError as error:
+        online_seconds = time.perf_counter() - online_started
+        update_publication_run(
+            run,
+            diagnostics={
+                "shared_offline_reused": True,
+                "training_snapshot_count": int(context.training_indices.size),
+                "extrapolation_snapshot_count": int(
+                    context.extrapolation_indices.size
+                ),
+                "reduced_initial_condition": {
+                    "dimension": int(initial.size),
+                    "euclidean_norm": float(np.linalg.norm(initial)),
+                    "finite": bool(np.all(np.isfinite(initial))),
+                    "POD_coefficient_fit_residual": initial_fit_residual,
+                },
+                "failed_integration": error.diagnostics,
+                "regularization": regularization,
+                "stage_timing_seconds": {
+                    "nonlinear_lifting": lifting_seconds,
+                    "operator_projection": projection_seconds,
+                    "operator_inference": inference_seconds,
+                    "initial_condition": initial_seconds,
+                    "online_reduced_ODE_before_failure": online_seconds,
+                },
+            },
+            timing={
+                "online_runtime_seconds": online_seconds,
+                "offline_runtime_seconds": (
+                    lifting_seconds
+                    + projection_seconds
+                    + inference_seconds
+                    + initial_seconds
+                ),
+                "total_runtime_seconds": time.perf_counter() - case_started,
+                "speedup_basis": None,
+                "included_stages": [
+                    "case-specific lifting",
+                    "operator projection",
+                    "reduced initial condition",
+                    "failed reduced ODE solve",
+                ],
+                "excluded_stages": [
+                    "production FOM",
+                    "shared derivative computation",
+                    "shared full POD SVD",
+                    "reconstruction after failed integration",
+                ],
+                "classification": "failed_case_diagnostics_not_publication_speedup",
+            },
+        )
+        raise
+    online_seconds = time.perf_counter() - online_started
+
+    target_time = 2.5
+    target_index = int(
+        round((target_time - config.time.initial_time) / config.time.output_spacing)
+    )
+    reconstruction_started = time.perf_counter()
+    errors, selected_fields = reconstruct_and_compute_errors_chunked(
+        context,
+        integration.y,
+        selected_indices=(target_index,),
+    )
+    reconstruction_seconds = time.perf_counter() - reconstruction_started
+    fom_field = np.asarray(snapshot[:, target_index])
+    rom_field = selected_fields[target_index]
+    write_npz_artifact(
+        run,
+        "fields.npz",
+        {
+            "field_time": np.asarray([target_time]),
+            "field_time_index": np.asarray([target_index], dtype=int),
+            "dof_index": np.arange(fom_field.size, dtype=int),
+            "fom_angular_flux": fom_field,
+            "rom_angular_flux": rom_field,
+            "discrepancy": fom_field - rom_field,
+        },
+    )
+    write_npz_artifact(
+        run,
+        "error_history.npz",
+        {
+            "time": context.time,
+            "instantaneous_normalized_mass_error": errors,
+            "field_time": np.asarray([target_time]),
+            "training_end_time": np.asarray([config.time.training_end_time]),
+        },
+    )
+    total_seconds = time.perf_counter() - case_started
+    projected_nonlinear = context.model.projectedNonlinear
+    active_linear = (
+        context.model.projectedLinear
+        if context.operator_choice == "projected"
+        else context.model.inferredLinear
+    )
+    active_nonlinear = None
+    if context.model_name != "linear":
+        active_nonlinear = (
+            projected_nonlinear
+            if context.operator_choice == "projected"
+            else context.model.inferredNonlinear
+        )
+    inference_diagnostics = context.model.inference_diagnostics
+    if context.operator_choice == "inferred" and context.model_name == "linear":
+        inference_diagnostics = {
+            "converged": True,
+            "iteration_count": 0,
+            "final_convergence_measure": 0.0,
+            "termination_reason": "direct_linear_solve",
+        }
+    training_errors = errors[context.training_indices]
+    extrapolation_errors = errors[context.extrapolation_indices]
+    diagnostics = {
+        "shared_offline_reused": True,
+        "full_reconstructed_trajectory_constructed": False,
+        "reconstruction_chunk_size": 256,
+        "training_snapshot_count": int(context.training_indices.size),
+        "extrapolation_snapshot_count": int(context.extrapolation_indices.size),
+        "reduced_initial_condition": {
+            "dimension": int(initial.size),
+            "euclidean_norm": float(np.linalg.norm(initial)),
+            "finite": bool(np.all(np.isfinite(initial))),
+            "POD_coefficient_fit_residual": initial_fit_residual,
+        },
+        "operator_dimensions": {
+            "linear": list(np.asarray(active_linear).shape),
+            "nonlinear": None
+            if active_nonlinear is None
+            else list(np.asarray(active_nonlinear).shape),
+        },
+        "solver": {
+            "success": bool(integration.success),
+            "message": str(integration.message),
+            "returned_output_times": int(integration.t.size),
+            "nfev": int(integration.nfev),
+            "njev": int(integration.njev),
+            "nlu": int(integration.nlu),
+            "final_time": float(integration.t[-1]),
+        },
+        "inference": inference_diagnostics,
+        "regularization": regularization,
+        "stage_timing_seconds": {
+            "nonlinear_lifting": lifting_seconds,
+            "operator_projection": projection_seconds,
+            "operator_inference": inference_seconds,
+            "initial_condition": initial_seconds,
+            "online_reduced_ODE": online_seconds,
+            "chunked_reconstruction_and_error": reconstruction_seconds,
+        },
+    }
+    metrics = {
+        "instantaneous_error_history_metric_id": "instantaneous_steady_state_normalized_mass_error",
+        "maximum_instantaneous_error": float(np.max(errors)),
+        "mean_instantaneous_error_summary": float(np.mean(errors)),
+        "maximum_training_error": float(np.max(training_errors)),
+        "mean_training_error": float(np.mean(training_errors)),
+        "maximum_extrapolation_error": float(np.max(extrapolation_errors)),
+        "mean_extrapolation_error": float(np.mean(extrapolation_errors)),
+        "publication_convergence_metric": None,
+    }
+    update_publication_run(
+        run,
+        metrics=metrics,
+        diagnostics=diagnostics,
+        solver={
+            "status": "rom_integrated",
+            "success": bool(integration.success),
+            "message": str(integration.message),
+        },
+        timing={
+            "online_runtime_seconds": online_seconds,
+            "offline_runtime_seconds": (
+                lifting_seconds
+                + projection_seconds
+                + inference_seconds
+                + initial_seconds
+            ),
+            "total_runtime_seconds": total_seconds,
+            "speedup_basis": None,
+            "included_stages": [
+                "case-specific lifting",
+                "operator projection",
+                "operator inference when selected",
+                "reduced initial condition",
+                "reduced ODE solve",
+                "chunked reconstruction and instantaneous error",
+            ],
+            "excluded_stages": [
+                "production FOM",
+                "shared derivative computation",
+                "shared full POD SVD",
+            ],
+            "classification": "measured_case_stages_not_publication_speedup",
+        },
+    )
 def _artifact_arrays(root: Path, manifest: dict[str, Any]) -> dict[str, np.ndarray]:
     arrays: dict[str, np.ndarray] = {}
     paths = sorted({record["artifact_path"] for record in manifest["arrays"]})
@@ -743,6 +1131,9 @@ def build_figure_data_bundle(
             for case_id in cases
         }
         expected_series = FIGURE4_EXPECTED_SERIES
+    elif figure in {"Figure 2", "Figure 3"}:
+        present_series = {catalog.get(case_id).model_type for case_id in cases}
+        expected_series = {"linear", "elementwise", "tensorial"}
     else:
         present_series = set()
         expected_series = set()
@@ -757,7 +1148,12 @@ def build_figure_data_bundle(
         "series_membership": sorted(present_series),
         "expected_series_membership": sorted(expected_series),
         "missing_series": sorted(expected_series.difference(present_series)),
-        "complete_publication_reproduction": complete,
+        "case_set_complete": complete,
+        "complete_publication_reproduction": False,
+        "publication_reproduction_limitation": (
+            "The preserved localized-sigmoid initial condition differs from the "
+            "manuscript statement, and no original publication dataset checksum is available."
+        ),
         "status": "complete_input_set" if complete else "partial_input_set",
         "sources": sources,
         "array_metadata": _array_metadata(
@@ -871,6 +1267,7 @@ def _plot_fields_and_errors(
                 arrays[prefix + "instantaneous_normalized_mass_error"],
             )
             axis.axvline(7.5, color="black", linestyle="--", label="training end")
+            axis.axvline(2.5, color="tab:red", linestyle=":", label="field time")
             axis.set_title(f"{figure}: {case_id} — legacy sigmoid benchmark")
             axis.set(xlabel="Time", ylabel="Instantaneous normalized M-error")
             axis.legend()

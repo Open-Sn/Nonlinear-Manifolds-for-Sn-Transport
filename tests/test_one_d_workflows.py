@@ -31,7 +31,20 @@ from one_d.problem import (
     construct_boundary_values,
     construct_initial_condition,
 )
+from one_d.rom import (
+    construct_inferred_operators,
+    construct_nonlinear_lifting,
+    initialize_rom_context_from_precomputed,
+    reconstruct_and_compute_errors_chunked,
+    regularization_diagnostics,
+)
+from one_d.publication_artifacts import sha256_file
+from one_d.shared_offline import (
+    build_shared_offline_artifacts,
+    load_shared_offline_artifacts,
+)
 import one_d.provenance as provenance
+import one_d.workflows as workflows
 from one_d.provenance import create_run_directory, load_manifest
 from one_d.workflows import (
     dry_run_fom,
@@ -131,6 +144,65 @@ def test_configured_tiny_problem_matches_production_assembly_contract(
     np.testing.assert_allclose(operators.system.toarray(), reference.operator.toarray())
     expected_boundary = reference.boundary @ np.array([0.0, 0.0, 0.0, 1.0])
     np.testing.assert_allclose(operators.boundary_source, expected_boundary)
+
+
+def test_regularization_scale_is_applied_once_at_gram_solves(tiny_config):
+    class RecordingModel:
+        def compute_nonlinear_embedding(self, *, lambda_E):
+            self.lambda_E = lambda_E
+            self.pod_nonlinear_basis = np.zeros((2, 1))
+
+        def compute_inferred_operators(
+            self, *, lambda_A, lambda_H, tolerance, max_iterations
+        ):
+            self.inference_arguments = {
+                "lambda_A": lambda_A,
+                "lambda_H": lambda_H,
+                "tolerance": tolerance,
+                "max_iterations": max_iterations,
+            }
+            self.inferredLinear = np.zeros((1, 1))
+
+    model = RecordingModel()
+    context = SimpleNamespace(
+        config=tiny_config,
+        model_name="tensorial",
+        model=model,
+    )
+
+    construct_nonlinear_lifting(context, regularization_scale=6.0)
+    construct_inferred_operators(context, regularization_scale=6.0)
+    diagnostics = regularization_diagnostics(
+        context, regularization_scale=6.0
+    )
+
+    assert model.lambda_E == pytest.approx(6.0e-7)
+    assert model.inference_arguments == {
+        "lambda_A": 0.0,
+        "lambda_H": pytest.approx(6.0e-5),
+        "tolerance": 1.0e-6,
+        "max_iterations": 100000,
+    }
+    assert diagnostics == {
+        "coefficient_scale": 6.0,
+        "lifting_gamma_coefficient": 1.0e-7,
+        "lifting_gram_ridge_actual": pytest.approx(6.0e-7),
+        "linear_lambda_coefficient": 0.0,
+        "linear_inference_gram_ridge_actual": 0.0,
+        "quadratic_lambda_coefficient": 1.0e-5,
+        "quadratic_inference_gram_ridge_actual": pytest.approx(6.0e-5),
+    }
+
+
+@pytest.mark.parametrize("scale", [0.0, -1.0, np.inf, np.nan])
+def test_regularization_scale_must_be_positive_and_finite(tiny_config, scale):
+    context = SimpleNamespace(
+        config=tiny_config,
+        model_name="tensorial",
+        model=SimpleNamespace(),
+    )
+    with pytest.raises(ValueError, match="positive and finite"):
+        regularization_diagnostics(context, regularization_scale=scale)
 
 
 def test_root_helpers_match_configured_stages_on_small_data():
@@ -246,6 +318,53 @@ def test_workflow_execution_requires_explicit_authorization(tiny_config, tmp_pat
     assert list(tmp_path.iterdir()) == before
 
 
+def test_fom_execution_records_solver_and_snapshot_diagnostics(tiny_config, tmp_path):
+    outcome = execute_fom_workflow(
+        tiny_config,
+        execute=True,
+        run_directory=tmp_path / "fom-success",
+        hash_snapshot=True,
+    )
+    manifest = load_manifest(outcome["run"])
+    diagnostics = manifest["execution"]["diagnostics"]
+
+    assert manifest["execution"]["solver_success"] is True
+    assert diagnostics["action"] == "solved"
+    assert diagnostics["output_time_count"] == tiny_config.time.output_count
+    assert diagnostics["final_time_confirmed"] is True
+    assert diagnostics["rhs_evaluations"] > 0
+    assert diagnostics["jacobian_evaluations"] >= 0
+    assert diagnostics["lu_decompositions"] >= 0
+    assert diagnostics["snapshot_finite"] is True
+    assert diagnostics["snapshot_file_bytes"] == outcome["snapshot_path"].stat().st_size
+    assert len(manifest["snapshot"]["content_sha256"]) == 64
+
+
+def test_fom_execution_preserves_failure_in_manifest(
+    monkeypatch, tiny_config, tmp_path
+):
+    def fail_solve(_config):
+        raise RuntimeError("synthetic solver failure")
+
+    monkeypatch.setattr(workflows, "solve_fom", fail_solve)
+    run_directory = tmp_path / "fom-failure"
+    with pytest.raises(RuntimeError, match="synthetic solver failure"):
+        execute_fom_workflow(
+            tiny_config,
+            execute=True,
+            run_directory=run_directory,
+        )
+    manifest = load_manifest(run_directory)
+    diagnostics = manifest["execution"]["diagnostics"]
+
+    assert manifest["execution"]["solver_success"] is False
+    assert diagnostics == {
+        "action": "failed",
+        "error_type": "RuntimeError",
+        "error_message": "synthetic solver failure",
+    }
+
+
 def test_snapshot_inspection_reports_compatibility_and_hash(tiny_config, tmp_path):
     snapshot = tmp_path / tiny_config.output.snapshot_filename
     np.save(snapshot, np.zeros(tiny_config.expected_snapshot_shape))
@@ -263,6 +382,104 @@ def test_snapshot_inspection_reports_compatibility_and_hash(tiny_config, tmp_pat
     assert inspection.initial_time == 0.0
     assert inspection.final_time == 0.05
     assert inspection.output_spacing == 0.01
+
+
+def test_precomputed_rom_context_and_chunked_errors_match_full_formula(tiny_config):
+    generator = np.random.default_rng(725)
+    state_size, output_count = tiny_config.expected_snapshot_shape
+    rank = tiny_config.rom.latent_dimension
+    total_dimension = rank + tiny_config.rom.lifting_dimension
+    basis, _ = np.linalg.qr(generator.normal(size=(state_size, total_dimension)))
+    coefficients = generator.normal(size=(total_dimension, 4))
+    reduced = generator.normal(size=(rank, output_count))
+    steady = np.ones(state_size)
+    snapshot = steady[:, None] + basis[:, :rank] @ reduced
+    snapshot += 1.0e-3 * generator.normal(size=snapshot.shape)
+    context = initialize_rom_context_from_precomputed(
+        replace(
+            tiny_config,
+            rom=replace(
+                tiny_config.rom,
+                embedding_type="linear",
+                lifting_dimension=0,
+            ),
+        ),
+        snapshot,
+        steady_state=steady,
+        time=build_time_array(tiny_config),
+        training_indices=np.arange(4),
+        extrapolation_indices=np.arange(4, output_count),
+        derivatives=np.zeros((state_size, 4)),
+        basis=basis,
+        singular_values=np.linspace(2.0, 1.0, total_dimension),
+        coefficients=coefficients,
+        model_name="linear",
+        operator_choice="projected",
+    )
+
+    full = context.model.reconstruct(reduced)
+    expected_errors = context.model.compute_errors(full)
+    errors, selected = reconstruct_and_compute_errors_chunked(
+        context,
+        reduced,
+        selected_indices=(2, 5),
+        chunk_size=2,
+    )
+
+    np.testing.assert_allclose(errors, expected_errors, rtol=5.0e-14, atol=5.0e-14)
+    np.testing.assert_allclose(selected[2], full[:, 2])
+    np.testing.assert_allclose(selected[5], full[:, 5])
+
+
+def test_lossless_shared_offline_artifacts_are_hashed_and_reloadable(
+    tiny_config, tmp_path
+):
+    config = replace(
+        tiny_config,
+        time=replace(
+            tiny_config.time,
+            final_time=0.14,
+            training_end_time=0.12,
+        ),
+        output=replace(
+            tiny_config.output,
+            snapshot_filename="solutionDG1_A4_T0.14_Nt15_Nx6_tiny.npy",
+        ),
+    )
+    generator = np.random.default_rng(908)
+    snapshot = tmp_path / config.output.snapshot_filename
+    np.save(snapshot, generator.normal(size=config.expected_snapshot_shape))
+    checksum = sha256_file(snapshot)
+    root = tmp_path / "shared"
+
+    build_shared_offline_artifacts(
+        config,
+        snapshot,
+        root,
+        dataset_sha256=checksum,
+        retained_dimension=6,
+    )
+    shared = load_shared_offline_artifacts(
+        root,
+        config,
+        dataset_sha256=checksum,
+    )
+    manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+
+    assert manifest["status"] == "completed"
+    assert manifest["dataset"]["duplicated_in_shared_artifacts"] is False
+    assert manifest["diagnostics"]["training_snapshot_count"] == 13
+    assert manifest["diagnostics"]["centered_training_snapshots"]["stored"] is False
+    assert shared.derivatives.shape == (48, 13)
+    assert shared.basis.shape == (48, 6)
+    assert shared.coefficients.shape == (6, 13)
+    assert shared.basis.dtype == np.float64
+    assert shared.derivatives.dtype == np.float64
+    assert all(len(record["sha256"]) == 64 for record in manifest["arrays"].values())
+    assert (
+        manifest["diagnostics"]["mass_orthonormality"]["maximum_absolute_entry"]
+        < 1.0e-12
+    )
 
 
 @pytest.mark.parametrize("dirty", [False, True])

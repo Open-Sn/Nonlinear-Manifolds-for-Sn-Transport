@@ -4,10 +4,13 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
+import one_d.publication_artifacts as publication_artifacts
+import one_d.rom as rom
 from one_d.publication_artifacts import (
     build_figure_data_bundle,
     create_publication_run_directory,
@@ -138,6 +141,51 @@ def test_result_artifact_schema_validates_json_npz_and_provenance(tmp_path, cata
     assert len(manifest["arrays"]) == 8
 
 
+def test_publication_rom_execution_scales_ridges_by_training_count(
+    monkeypatch, catalog
+):
+    case = catalog.get("fig2_elementwise_projected")
+    config = resolve_case_configuration(case)
+    captured = {}
+
+    class FieldHistory:
+        def __getitem__(self, key):
+            assert key == (slice(None), 2500)
+            return np.zeros(config.problem.phase_space_dofs)
+
+    def fake_run_selected_rom(config_argument, snapshot_path, **kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace(
+            reconstructed_state=FieldHistory(),
+            time=np.array([0.0]),
+            errors=np.array([0.0]),
+            diagnostics={"solver_success": True, "solver_message": "ok"},
+        )
+
+    monkeypatch.setattr(rom, "run_selected_rom", fake_run_selected_rom)
+    monkeypatch.setattr(
+        publication_artifacts.np,
+        "load",
+        lambda *args, **kwargs: FieldHistory(),
+    )
+    monkeypatch.setattr(
+        publication_artifacts,
+        "write_npz_artifact",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        publication_artifacts,
+        "update_publication_run",
+        lambda *args, **kwargs: None,
+    )
+
+    publication_artifacts._execute_rom_case(
+        SimpleNamespace(), case, config, Path("validated-snapshot.npy")
+    )
+
+    assert captured["regularization_scale"] == 7501.0
+
+
 def test_result_artifact_rejects_benchmark_or_shape_tampering(tmp_path, catalog):
     run = _make_synthetic_figure2_artifact(tmp_path, catalog)
     manifest = json.loads(run.manifest_path.read_text(encoding="utf-8"))
@@ -169,6 +217,10 @@ def test_figure_data_and_plotting_use_only_synthetic_validated_artifacts(tmp_pat
     metadata = json.loads(bundle.metadata_path.read_text(encoding="utf-8"))
     assert metadata["status"] == "partial_input_set"
     assert metadata["benchmark_variant"] == "legacy_sigmoid"
+    assert metadata["case_set_complete"] is False
+    assert metadata["series_membership"] == ["linear"]
+    assert metadata["missing_series"] == ["elementwise", "tensorial"]
+    assert metadata["complete_publication_reproduction"] is False
     paths = plot_figure_data_bundle(bundle.root, output_directory=tmp_path / "plots")
     assert paths
     assert all(path.is_file() for path in paths)

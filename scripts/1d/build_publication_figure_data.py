@@ -71,7 +71,8 @@ def main(argv=None) -> int:
             {
                 **report,
                 "action": "built",
-                "complete_publication_reproduction": bundle.complete,
+                "case_set_complete": bundle.complete,
+                "complete_publication_reproduction": False,
                 "metadata_path": str(bundle.metadata_path),
                 "data_path": str(bundle.data_path),
             },

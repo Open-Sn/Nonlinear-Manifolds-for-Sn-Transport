@@ -222,7 +222,24 @@ def execute_fom_workflow(
     if source_path.exists() and not (overwrite or config.output.allow_overwrite):
         raise FileExistsError(f"refusing to overwrite existing snapshot: {source_path}")
 
-    solution = solve_fom(config)
+    try:
+        solution = solve_fom(config)
+    except Exception as error:
+        elapsed = wall_time.perf_counter() - timer
+        update_manifest(
+            run,
+            execution={
+                "solver_success": False,
+                "finish_time_utc": datetime.now(timezone.utc).isoformat(),
+                "elapsed_seconds": elapsed,
+                "diagnostics": {
+                    "action": "failed",
+                    "error_type": type(error).__name__,
+                    "error_message": str(error),
+                },
+            },
+        )
+        raise
     save_snapshot(
         target,
         solution.state,
@@ -230,19 +247,43 @@ def execute_fom_workflow(
         overwrite=overwrite or config.output.allow_overwrite,
     )
     elapsed = wall_time.perf_counter() - timer
+    solver_result = solution.solver_result
+    snapshot_hash = sha256_file(target) if hash_snapshot else None
+    diagnostics = {
+        "action": "solved",
+        "solver_message": str(solver_result.message),
+        "output_time_count": int(solution.time.size),
+        "final_time": float(solution.time[-1]),
+        "expected_final_time": float(config.time.final_time),
+        "final_time_confirmed": bool(
+            np.isclose(
+                solution.time[-1],
+                config.time.final_time,
+                rtol=0.0,
+                atol=1.0e-12,
+            )
+        ),
+        "rhs_evaluations": int(getattr(solver_result, "nfev", 0)),
+        "jacobian_evaluations": int(getattr(solver_result, "njev", 0)),
+        "lu_decompositions": int(getattr(solver_result, "nlu", 0)),
+        "snapshot_minimum": float(np.min(solution.state)),
+        "snapshot_maximum": float(np.max(solution.state)),
+        "snapshot_finite": bool(np.all(np.isfinite(solution.state))),
+        "snapshot_file_bytes": int(target.stat().st_size),
+    }
     update_manifest(
         run,
         snapshot={
             "filename": target.name,
             "shape": list(solution.state.shape),
             "dtype": str(solution.state.dtype),
-            "content_sha256": sha256_file(target) if hash_snapshot else None,
+            "content_sha256": snapshot_hash,
         },
         execution={
-            "solver_success": True,
+            "solver_success": bool(solver_result.success),
             "finish_time_utc": datetime.now(timezone.utc).isoformat(),
             "elapsed_seconds": elapsed,
-            "diagnostics": {"action": "solved"},
+            "diagnostics": diagnostics,
         },
     )
     return {"action": "solved", "snapshot_path": target, "run": run}

@@ -201,6 +201,12 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 
+# Large generated 1-D production and shared-offline numerical arrays.
+# Compact manifests, summaries, selected fields, and figure-ready data remain visible.
+/results/1d/publication/base_fom/*/data/*.npy
+/results/1d/publication/shared_offline/*/*/data/*.npy
+/results/1d/publication/shared_offline/*/*/data/*.npz
+
 # Marimo
 marimo/_static/
 marimo/_lsp/

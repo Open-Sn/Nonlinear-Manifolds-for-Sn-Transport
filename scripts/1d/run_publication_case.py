@@ -36,6 +36,10 @@ def parse_args(argv=None):
     parser.add_argument("--run-directory")
     parser.add_argument("--run-id")
     parser.add_argument(
+        "--shared-offline",
+        help="validated shared derivative/POD artifact directory",
+    )
+    parser.add_argument(
         "--overwrite",
         action="store_true",
         help="explicit overwrite authorization; completed publication runs remain immutable",
@@ -72,6 +76,7 @@ def main(argv=None) -> int:
             output_root=args.output_root,
             run_directory=args.run_directory,
             run_id=args.run_id,
+            shared_offline_directory=args.shared_offline,
         )
     except (PublicationExecutionRefused, FileExistsError, FileNotFoundError, ValueError) as error:
         print(str(error), file=sys.stderr)

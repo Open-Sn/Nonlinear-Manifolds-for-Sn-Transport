@@ -11,6 +11,14 @@ from Nonlinear_Manifold_ROM import (
     normalize_embedding_type,
     quadratic_features,
 )
+from one_d.nonlinear_diagnostics import (
+    difference_metrics,
+    historical_alternating_inference,
+    historical_lifting,
+    historical_nonlinear_rhs,
+    historical_quadratic_features,
+    latent_derivatives,
+)
 
 
 def test_production_inference_limit_exceeds_published_iteration_count():
@@ -54,6 +62,91 @@ def test_tensorial_quadratic_features_for_vector_and_snapshots():
     assert vector_features.shape == (6,)
     assert snapshot_features.shape == (6, 2)
     assert len(vector_features) == 3 * (3 + 1) // 2
+
+
+@pytest.mark.parametrize("model", ["elementwise", "tensorial"])
+def test_historical_feature_and_lifting_reference_matches_current(model):
+    generator = np.random.default_rng(402)
+    latent = generator.normal(size=(3, 20))
+    lifting = generator.normal(size=(5, 20))
+    ridge = 2.5e-4
+    reference = historical_lifting(latent, lifting, ridge, model)
+
+    current = NonlinearManifoldReducedModel(model)
+    current.size_R = latent.shape[0]
+    current.pod_linear_coeff = latent
+    current.pod_ortho_coeff = lifting
+    current.pod_ortho_basis = np.eye(lifting.shape[0])
+    current.compute_nonlinear_embedding(lambda_E=ridge)
+
+    np.testing.assert_array_equal(
+        historical_quadratic_features(latent, model),
+        quadratic_features(latent, model),
+    )
+    np.testing.assert_allclose(
+        current.nonlinear_lift_matrix,
+        reference["lifting_matrix"],
+        rtol=2e-14,
+        atol=2e-14,
+    )
+
+
+def test_historical_rhs_and_inference_sequence_match_current():
+    linear, nonlinear, residual, _, _ = _known_nonlinear_inference_problem()
+    reference = historical_alternating_inference(
+        linear,
+        nonlinear,
+        residual,
+        ridge_linear=0.0,
+        ridge_nonlinear=0.0,
+        tolerance=1e-11,
+        maximum_iterations=10000,
+        checkpoints=(1, 10, 100),
+    )
+    current_linear, current_nonlinear, current_diagnostics = (
+        NonlinearManifoldReducedModel.nonlinear_inference(
+            linear,
+            nonlinear,
+            residual,
+            ll_A=0.0,
+            ll_H=0.0,
+            tolerance=1e-11,
+            max_iterations=10000,
+            return_diagnostics=True,
+        )
+    )
+
+    np.testing.assert_allclose(reference["linear_operator"], current_linear, atol=1e-14)
+    np.testing.assert_allclose(
+        reference["nonlinear_operator"], current_nonlinear, atol=1e-14
+    )
+    assert reference["iteration_count"] == current_diagnostics["iteration_count"]
+    assert reference["final_convergence_measure"] == pytest.approx(
+        current_diagnostics["final_convergence_measure"], rel=2e-14
+    )
+    coordinate = np.array([0.2, -0.3])
+    np.testing.assert_allclose(
+        historical_nonlinear_rhs(
+            coordinate, current_linear, current_nonlinear, "tensorial"
+        ),
+        -current_linear @ coordinate
+        - current_nonlinear @ quadratic_features(coordinate, "tensorial"),
+    )
+
+
+def test_historical_derivative_defect_is_isolated_to_final_four_columns():
+    time = np.arange(20, dtype=float) * 0.1
+    values = np.vstack((time**2, time**3))
+    corrected = latent_derivatives(values, 0.1)
+    defective = latent_derivatives(values, 0.1, historical_defect=True)
+
+    np.testing.assert_allclose(corrected[:, :-4], defective[:, :-4])
+    assert np.linalg.norm(corrected[:, -4:] - defective[:, -4:]) > 1.0
+    assert np.linalg.norm(defective[:, -1] - defective[:, -2]) == pytest.approx(0.0)
+    assert difference_metrics(corrected, corrected) == {
+        "maximum_absolute_difference": 0.0,
+        "relative_frobenius_difference": 0.0,
+    }
 
 
 @pytest.mark.parametrize(

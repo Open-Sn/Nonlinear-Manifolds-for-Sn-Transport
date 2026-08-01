@@ -48,6 +48,60 @@ _EMBEDDING_ALIASES = {
 DEFAULT_MAX_INFERENCE_ITERATIONS = 100000
 
 
+class ReducedIntegrationError(RuntimeError):
+    """A failed reduced solve with the unmodified SciPy result attached."""
+
+    def __init__(self, message, result, diagnostics):
+        super().__init__(message)
+        self.result = result
+        self.diagnostics = diagnostics
+
+
+def reduced_integration_diagnostics(result, requested_final_time):
+    """Summarize a returned ``solve_ivp`` result, including failed results."""
+    times = np.asarray(getattr(result, "t", np.array([])), dtype=float)
+    state = np.asarray(getattr(result, "y", np.array([])))
+    first_nonfinite = None
+    if state.size:
+        bad = np.argwhere(~np.isfinite(state))
+        if bad.size:
+            row, column = (int(value) for value in bad[0])
+            first_nonfinite = {
+                "state_index": row,
+                "output_index": column,
+                "value": repr(state[row, column]),
+            }
+    finite_columns = None
+    final_norm = None
+    maximum_norm = None
+    if state.ndim == 2 and state.shape[1]:
+        column_norms = np.linalg.norm(state, axis=0)
+        finite_columns = bool(np.all(np.isfinite(column_norms)))
+        if finite_columns:
+            final_norm = float(column_norms[-1])
+            maximum_norm = float(np.max(column_norms))
+    minimum_separation = None
+    if times.size > 1:
+        minimum_separation = float(np.min(np.diff(times)))
+    return {
+        "success": bool(getattr(result, "success", False)),
+        "message": str(getattr(result, "message", "no solver message")),
+        "last_returned_time": float(times[-1]) if times.size else None,
+        "requested_final_time": float(requested_final_time),
+        "returned_output_points": int(times.size),
+        "nfev": int(getattr(result, "nfev", 0)),
+        "njev": int(getattr(result, "njev", 0)),
+        "nlu": int(getattr(result, "nlu", 0)),
+        "final_latent_state_norm": final_norm,
+        "maximum_latent_state_norm": maximum_norm,
+        "latent_column_norms_finite": finite_columns,
+        "first_nonfinite_value": first_nonfinite,
+        "minimum_returned_time_separation": minimum_separation,
+        "minimum_internal_time_separation": None,
+        "internal_step_history_available": False,
+    }
+
+
 def normalize_embedding_type(value):
     """Normalize public embedding names while retaining historical aliases."""
     if value is None:
@@ -191,6 +245,8 @@ class NonlinearManifoldReducedModel:
 
         # ── Placeholders – Initial condition ─v──────────────────────────────
         self.initial_condition = None
+        self.last_integration_result = None
+        self.last_integration_diagnostics = None
 
 
     # ======================================================================
@@ -645,14 +701,23 @@ class NonlinearManifoldReducedModel:
 
         # Integrate the reduced-order model over the full time interval using a stiff ODE solver:
         ivp_kw = dict(t_span=(initial_time, self.TT), method=method, atol=atol, rtol=rtol, t_eval=self.time_steps)
-        ivp_result  = sp.integrate.solve_ivp(fun=ff, y0=self.initial_condition, **ivp_kw)
-        validate_solve_ivp_result(
-            ivp_result,
-            self.time_steps,
-            self.initial_condition.size,
-            "reduced-order model solve",
-            expected_final_time=self.TT,
+        ivp_result = sp.integrate.solve_ivp(fun=ff, y0=self.initial_condition, **ivp_kw)
+        self.last_integration_result = ivp_result
+        self.last_integration_diagnostics = reduced_integration_diagnostics(
+            ivp_result, self.TT
         )
+        try:
+            validate_solve_ivp_result(
+                ivp_result,
+                self.time_steps,
+                self.initial_condition.size,
+                "reduced-order model solve",
+                expected_final_time=self.TT,
+            )
+        except RuntimeError as error:
+            raise ReducedIntegrationError(
+                str(error), ivp_result, self.last_integration_diagnostics
+            ) from error
         return ivp_result
 
 

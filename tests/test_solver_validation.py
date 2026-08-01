@@ -5,7 +5,11 @@ import pytest
 
 import Nonlinear_Manifold_ROM as rom
 import Transport_Driver_Benchmark_1D as driver
-from Nonlinear_Manifold_ROM import NonlinearManifoldReducedModel
+from Nonlinear_Manifold_ROM import (
+    NonlinearManifoldReducedModel,
+    ReducedIntegrationError,
+    reduced_integration_diagnostics,
+)
 from Transport_Driver_Benchmark_1D import validate_solve_ivp_result
 
 
@@ -90,3 +94,38 @@ def test_reduced_order_wrapper_rejects_incomplete_solve(monkeypatch):
 
     with pytest.raises(RuntimeError, match="reduced-order model solve: incomplete output"):
         model.solve(intrusive=True)
+
+
+def test_failed_reduced_solve_preserves_complete_returned_diagnostics(monkeypatch):
+    model = NonlinearManifoldReducedModel(None)
+    model.initial_condition = np.array([1.0, -2.0])
+    model.projectedLinear = np.eye(2)
+    model.TT = 1.0
+    model.time_steps = np.array([0.0, 0.25, 0.5, 0.75, 1.0])
+    failed = _result(
+        [0.0, 0.25, 0.5],
+        [[1.0, 2.0, 3.0], [-2.0, -4.0, -6.0]],
+        False,
+        "Required step size is less than spacing between numbers.",
+    )
+    failed.nfev = 123
+    failed.njev = 7
+    failed.nlu = 19
+    monkeypatch.setattr(rom.sp.integrate, "solve_ivp", lambda **kwargs: failed)
+
+    with pytest.raises(ReducedIntegrationError, match="Required step size") as caught:
+        model.integrate_reduced(intrusive=True)
+
+    diagnostics = caught.value.diagnostics
+    assert caught.value.result is failed
+    assert diagnostics == reduced_integration_diagnostics(failed, 1.0)
+    assert diagnostics["success"] is False
+    assert diagnostics["last_returned_time"] == 0.5
+    assert diagnostics["returned_output_points"] == 3
+    assert diagnostics["nfev"] == 123
+    assert diagnostics["njev"] == 7
+    assert diagnostics["nlu"] == 19
+    assert diagnostics["final_latent_state_norm"] == pytest.approx(np.sqrt(45.0))
+    assert diagnostics["maximum_latent_state_norm"] == pytest.approx(np.sqrt(45.0))
+    assert diagnostics["first_nonfinite_value"] is None
+    assert diagnostics["minimum_returned_time_separation"] == 0.25

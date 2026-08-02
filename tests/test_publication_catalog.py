@@ -34,9 +34,9 @@ def test_catalog_is_deterministic_and_has_pinned_checksum(catalog):
     reconstructed = load_publication_catalog(CATALOG_PATH)
     assert catalog.canonical_json() == reconstructed.canonical_json()
     assert catalog.checksum() == reconstructed.checksum()
-    assert catalog.checksum() == "59788662d7f3a40b8366f0c91f6ff757ae41f6357eca16f6e7e54b419d0127ed"
+    assert catalog.checksum() == "b53b7482b846fbc2bad3610b89568c91cb682d6d21a3ec265f34d308608e9b73"
     assert len(catalog.cases) == 57
-    assert sum(case.fully_specified for case in catalog.cases) == 25
+    assert sum(case.fully_specified for case in catalog.cases) == 57
     assert sum(case.specification_status == "partially_specified" for case in catalog.cases) == 0
 
 
@@ -162,17 +162,19 @@ def test_figure4_expansion_constraint_and_readiness(catalog):
             assert case.lambda_L == 0.0
     for case in nonlinear_cases:
         assert case.latent_dimension + case.lifting_dimension == 564
-        assert case.lifting_regularization_gamma is None
-        assert case.lambda_Q is None
-        assert case.specification_status == "requires_author_input"
-        assert not case.execution_allowed
-        assert any("author-selected gamma" in item for item in case.missing_information)
+        assert case.lifting_regularization_gamma is not None
+        assert case.specification_status == "fully_specified"
+        assert case.execution_allowed
+        assert case.missing_information == ()
+        assert case.provenance["parameter_provenance"] == "regenerated_sigmoid_search"
+        assert case.provenance["historical_parameter_recovery"] is False
+        assert case.provenance["complete_publication_reproduction"] is False
         if case.operator_construction == "projected":
             assert case.lambda_L is None
-            assert not any("lambda_Q" in item for item in case.missing_information)
+            assert case.lambda_Q is None
         else:
             assert case.lambda_L == 0.0
-            assert any("lambda_Q" in item for item in case.missing_information)
+            assert case.lambda_Q is not None
     for case in cases:
         assert case.benchmark_variant == BENCHMARK_VARIANT
         assert case.manuscript_deviation == EXPECTED_DEVIATION

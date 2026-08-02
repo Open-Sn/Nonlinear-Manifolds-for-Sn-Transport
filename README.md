@@ -74,8 +74,11 @@ documents the reusable interfaces and safe dry-run commands. Historical
 root-level commands remain available with unchanged defaults.
 
 The separate [sigmoid-based publication experiment workflow](docs/1d_publication_workflow.md)
-catalogs paper-oriented cases and provenance requirements without running the
-production calculation or claiming numerical reproduction.
+catalogs paper-oriented cases, provenance requirements, the regenerated
+Figure 4 search, tracked reviewed Figure 4 selections, and bundle-only Figure
+4/5 plotting. A fresh clone can resolve all regenerated Figure 4 cases without
+repeating the search; regenerated studies remain explicitly distinguished from
+exact historical reproduction.
 
 ---
 
@@ -130,8 +133,10 @@ model runs are separate from the fast pytest verification suite.
 If the production snapshot is absent, this explicit command first invokes the
 FOM workflow. Importing the module does not do so.
 
-Publication-scale figure and table reproduction is not yet automated. Open
-scientific and provenance items are recorded in
+Publication workflows use explicit scripts, immutable result directories, and
+validated compact figure bundles; see
+[`docs/1d_publication_workflow.md`](docs/1d_publication_workflow.md). Open
+historical provenance items remain recorded in
 [`docs/open_scientific_questions.md`](docs/open_scientific_questions.md).
 
 ---

@@ -439,8 +439,14 @@ def _load_or_create_shared_metric_inputs(
     snapshot: np.ndarray,
     shared: SharedOfflineArrays,
     mass: Any,
+    *,
+    existing_path: str | Path | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, Path]:
-    path = phase_root / "shared_metric_inputs.npz"
+    path = (
+        Path(existing_path)
+        if existing_path is not None
+        else phase_root / "shared_metric_inputs.npz"
+    )
     if path.is_file():
         with np.load(path, allow_pickle=False) as archive:
             reference = np.asarray(archive["reference_energy"])
@@ -1073,12 +1079,13 @@ def prepare_figure5_execution_context(
     fom_manifest_path: str | Path,
     shared_offline_directory: str | Path,
     phase_root: Path,
+    shared_metric_inputs_path: str | Path | None = None,
     config_path: str | Path = "configs/1d/legacy_production.json",
     catalog_path: str | Path = DEFAULT_CATALOG_PATH,
 ) -> tuple[Figure5ExecutionContext, dict[str, Any]]:
     config = load_config(config_path)
     if config.checksum() != LEGACY_CONFIG_CHECKSUM:
-        raise ValueError("Figure 5 base configuration checksum changed")
+        raise ValueError("Figure 4/5 base configuration checksum changed")
     catalog = load_publication_catalog(catalog_path)
     validate_figure5_catalog(catalog)
     snapshot_path = Path(snapshot_path)
@@ -1108,6 +1115,7 @@ def prepare_figure5_execution_context(
             snapshot,
             shared,
             operators.mass,
+            existing_path=shared_metric_inputs_path,
         )
     )
     environment = _hardware_metadata()

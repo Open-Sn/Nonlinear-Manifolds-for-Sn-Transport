@@ -545,7 +545,13 @@
     "total_dimension": 564,
     "gamma_candidate_range": [7e-10, 5e-05],
     "lambda_Q_candidate_range": [6e-09, 0.0002],
+    "selected_parameter_file": "configs/1d/publication/figure4_selected_parameters.json",
     "selected_parameter_file_schema": "configs/1d/publication/figure4_selected_parameters.schema.json",
+    "selected_parameter_content_checksum_sha256": "afd75f91a16b8dc3b87484752f2b699203d980ea577fa2721124ac6ae9d43d4e",
+    "specification_status": "fully_specified",
+    "execution_ready": true,
+    "parameter_provenance": "regenerated_sigmoid_search",
+    "complete_publication_reproduction": false,
     "training_interval": [0.0, 7.5],
     "required_input_snapshot": "solutionDG1_A4_T10_Nt10001_Nx750_continuous_bis.npy",
     "requested_outputs": [
@@ -565,11 +571,15 @@
       "selected_values_published_for_every_case": false
     },
     "notes": [
-      "Candidate ranges are recorded, but no best values are selected by this catalog.",
-      "Linear cases are executable; nonlinear cases remain refused until selected values are author supplied."
+      "The historical nonlinear regularization selections remain unavailable.",
+      "The tracked nonlinear values are reviewed Phase 8 regenerated selections, not recovered historical manuscript parameters.",
+      "All 48 cases are fully specified for the author-confirmed sigmoid benchmark without repeating the search."
     ],
     "provenance": {
-      "parameter_source": "Figure 4 values and limitations supplied for Phase 4",
+      "parameter_source": "Linear values from the catalog; nonlinear values from configs/1d/publication/figure4_selected_parameters.json",
+      "parameter_provenance": "regenerated_sigmoid_search",
+      "historical_parameter_recovery": false,
+      "complete_publication_reproduction": false,
       "benchmark_source": "configs/1d/legacy_production.json",
       "metric_id": "relative_space_time_l2_error_v1",
       "metric_provenance": "author_approved_repository_definition",

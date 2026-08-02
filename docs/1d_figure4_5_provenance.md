@@ -2,7 +2,7 @@
 
 The Phase 6 history audit found no historical executable implementation of
 the aggregate Figure 4/5 error, no historical Figure 5 speed-up loop, and no
-selected nonlinear Figure 4 regularization values. Phase 7 does not revise
+selected nonlinear Figure 4 regularization values. Phases 7 and 8 do not revise
 those findings. Instead, an author of the manuscript approved explicit
 repository definitions for regenerating the sigmoid-benchmark Figure 4/5
 metric and online timing. These definitions are not described as historically
@@ -81,13 +81,47 @@ the 16 linear Figure 4 cases. Those cases are cataloged as fully specified:
 linear projected cases have no regularization, while linear inferred cases use
 `lambda_L=0` and a closed-form inference solve.
 
-The 32 nonlinear Figure 4 cases remain blocked. No authoritative selected
-rank-specific `gamma` or inferred `lambda_Q` values were found. Candidate
-ranges in the catalog are search ranges, not selected values, and Figure 5
-constants may not be substituted. `lambda_L=0` remains documented, but is not
-sufficient to execute nonlinear inferred cases. The machine-readable audit is
-`configs/1d/publication/figure4_parameter_evidence.json`; it remains
-non-executable and unchanged.
+No authoritative historical rank-specific `gamma` or inferred `lambda_Q`
+values were found. The machine-readable historical audit at
+`configs/1d/publication/figure4_parameter_evidence.json` therefore remains
+unchanged and continues to document the failed recovery. It is not replaced or
+reinterpreted by regenerated values.
+
+Phase 8 supplies a separate author-approved regenerated protocol. For every
+nonlinear model and rank it evaluates nine geometrically spaced `gamma`
+coefficients from `7e-10` through `5e-5` with projected operators, followed by
+geometric-midpoint refinement to the available coarse neighbors. The selected
+projected `gamma` is reused for the corresponding inferred lifting. Inference
+then evaluates nine geometrically spaced `lambda_Q` coefficients from `6e-9`
+through `2e-4` and applies the same local refinement. Coefficients are
+multiplied by the validated `N_s=7501` training count exactly once. The
+objective is `relative_space_time_l2_error_v1`; candidates within 0.1 percent
+of the minimum are tied and the larger regularization coefficient wins.
+`lambda_L=0`, the `1e-6` inference tolerance, and the 100000-iteration limit
+are fixed.
+
+The definition is checksummed before execution, candidate results are compact
+and resumable, and final nonlinear artifacts reference selected search
+candidates rather than rerunning them. These outputs are labeled
+`regenerated_sigmoid_benchmark` with selection provenance
+`regenerated_sigmoid_search`. They are not recovered historical parameters or
+an exact reproduction of the original Figure 4 calculation.
+
+After review, the selected coefficients and complete selection metadata were
+promoted to the portable tracked file
+`configs/1d/publication/figure4_selected_parameters.json`. Its deterministic
+checksum, strict schema, per-case applied ridges, tie outcomes, and source
+checksums allow the catalog to resolve all 32 nonlinear cases without reading
+`results/1d/publication/phase8_runs/`. Together with the 16 directly specified
+linear cases, all 48 regenerated-sigmoid Figure 4 cases are now execution-ready
+once a valid production snapshot and required shared-offline inputs are
+available. Catalog resolution and individual execution consume the tracked
+values directly and never invoke the search.
+
+This portability changes regenerated-study readiness, not the historical
+provenance conclusion. A fresh clone can rerun the regenerated Figure 4 study
+without repeating the regularization search; the Phase 8 search can still be
+repeated independently to verify the documented selection protocol.
 
 ## Figure 5 readiness
 
@@ -111,8 +145,9 @@ count exactly once:
 
 - Original historical Figure 4/5 result files and their source environment are
   unavailable.
-- Nonlinear Figure 4 selected regularization and selection provenance remain
-  unavailable.
+- Historical nonlinear Figure 4 selected regularization and selection
+  provenance remain unavailable; Phase 8 selections are regenerated under the
+  explicit protocol above.
 - Regenerated Figure 5 results use the corrected current workflow and the
   author-approved metric/timing policy, so they are not claimed as exact
   historical reproduction.

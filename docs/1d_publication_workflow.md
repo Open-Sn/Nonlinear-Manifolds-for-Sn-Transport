@@ -16,7 +16,7 @@ The repository intentionally initializes the final positive angular block with
 
 using unit amplitude. The manuscript states zero initial angular flux. The
 authors confirm that the numerical calculations used to generate its
-one-dimensional Figures 1--3 employed the localized sigmoid preserved here.
+one-dimensional Figures 1--5 employed the localized sigmoid preserved here.
 The repository therefore retains this configuration as the authoritative
 numerical workflow for reproducing Figures 1--5. The manuscript-text
 discrepancy remains explicit, but it is not a defect, workaround, pending code
@@ -36,7 +36,7 @@ The catalog resolves to 57 cases in total.
 | 1 | 1 POD study | Legacy sigmoid | Fully specified | Production snapshot | Ready once compatible snapshot exists |
 | 2 | 3 projected ROMs | Legacy sigmoid | Fully specified | Production snapshot | Ready once compatible snapshot exists |
 | 3 | 3 inferred ROMs | Legacy sigmoid | Fully specified | Production snapshot | Ready once compatible snapshot exists |
-| 4 | 48 cases: 3 models × 2 operator types × 8 ranks | Legacy sigmoid | 16 linear fully specified; 32 nonlinear require author input | Nonlinear only: selected gamma and inferred lambda_Q | Linear ready; nonlinear refused |
+| 4 | 48 cases: 3 models × 2 operator types × 8 ranks | Legacy sigmoid | Fully specified for regenerated execution; historical selections unavailable | Production snapshot and execution assets | All 48 resolve through the catalog |
 | 5 | 2 projected/inferred comparison studies | Legacy sigmoid | Fully specified | None | Ready |
 
 The catalog deterministically expands Figure 4 over linear, elementwise, and
@@ -48,13 +48,17 @@ inferred cases carry only `lambda_L=0`; they do not use nonlinear lifting,
 quadratic inference, nonlinear convergence tolerance, or alternating-
 minimization iteration limits.
 
-The linear dynamical models and the author-approved aggregate metric/timing
-definitions are complete. Nonlinear Figure 4 cases still lack selected
-per-case regularization. The reported regularization ranges are search ranges,
-not selected values. The schema at
-`configs/1d/publication/figure4_selected_parameters.schema.json` describes
-future author-approved selections without supplying placeholders that could be
-mistaken for results.
+The historical nonlinear Figure 4 selections remain unavailable, so reported
+regularization ranges must not be mistaken for historical values. Phase 8
+instead implements an author-approved regenerated search over the cataloged
+ranges, including deterministic coarse grids, local geometric-midpoint
+refinement, and an explicit tie rule. The reviewed values are now tracked in
+`configs/1d/publication/figure4_selected_parameters.json`, labeled
+`regenerated_sigmoid_search`, and linked by checksum from the catalog. The 16
+linear cases remain directly specified; each of the 32 nonlinear cases resolves
+its coefficients and applied ridges from that single tracked file. The catalog
+keeps `complete_publication_reproduction=false` and explicitly records that the
+values are regenerated rather than recovered historical parameters.
 
 Figure 5 records `N_r=32`, all eight `N_q` values, and five distinct series:
 fixed-rank linear, elementwise quadratic, tensorial quadratic, enlarged linear,
@@ -93,8 +97,54 @@ python scripts/1d/run_publication_case.py fig3_tensorial_inferred \
   --execute
 ```
 
-Individual nonlinear Figure 4 cases remain conservatively refused. Figure 5
-uses a separate resumable execution plan and shared-offline assets:
+Individual nonlinear Figure 4 cases can now be inspected and dry-run directly;
+these commands read only tracked files and do not assemble operators, solve a
+ROM, write results, or consult the Phase 8 result directory:
+
+```bash
+python scripts/1d/inspect_publication_case.py fig4_tensorial_inferred_nr32
+python scripts/1d/run_publication_case.py \
+  fig4_tensorial_inferred_nr32 \
+  --dry-run
+```
+
+With a compatible snapshot and shared-offline directory, the generic execution
+path consumes the tracked selection without a search:
+
+```bash
+python scripts/1d/run_publication_case.py \
+  fig4_tensorial_inferred_nr32 \
+  --snapshot /path/to/solutionDG1_A4_T10_Nt10001_Nx750_continuous_bis.npy \
+  --shared-offline /path/to/validated/shared-offline \
+  --output-root results/1d/publication \
+  --execute
+```
+
+The portable catalog/configuration is sufficient in a fresh clone; the
+original `results/1d/publication/phase8_runs/` tree is not required. Figure 4
+and Figure 5 still have separate resumable study plans. Repeating the Figure 4
+search remains possible for verification by reviewing the Phase 8 dry-run:
+
+```bash
+python scripts/1d/run_phase8_figure4.py \
+  --run-id <new-run-id> \
+  --snapshot <production-snapshot.npy> \
+  --fom-manifest <validated-fom-manifest.json> \
+  --shared-offline <shared-offline-directory> \
+  --shared-metric-inputs <phase7-shared-metric-inputs.npz> \
+  --figure5-bundle <validated-phase7-figure5-bundle> \
+  --dry-run
+```
+
+Add `--execute` only when intentionally verifying the search and after recording
+resource availability and the runtime estimate. Phase 8 writes its checksummed
+search definition before initializing scientific execution, reuses completed
+candidates on resume, and promotes selected nonlinear candidates into
+final-case manifests without a duplicate solve. Ordinary regenerated Figure 4
+execution does not invoke this driver. The driver does not run the FOM,
+derivatives, POD/SVD, or Figure 5.
+
+The Phase 7 Figure 5 plan is:
 
 ```bash
 python scripts/1d/run_phase7_figure5.py \
@@ -134,11 +184,12 @@ is the uncentered transient FOM and the established mass convention is retained
 without angular weights. This definition was adopted for regeneration; it was
 not recovered from historical executable source.
 
-Figure 5 online time is wall-clock time inside the reduced `solve_ivp` call
-only. Speed-up divides the exact validated FOM-manifest integration time by
-that online value. Every excluded setup, inference, reconstruction, metric,
-and artifact stage is timed separately. One run, no warm-up, and no repeated
-average are required; the resulting speed-ups are machine-specific.
+Figure 4 and Figure 5 online times are wall-clock times inside the reduced
+`solve_ivp` call only. Speed-up divides the exact validated FOM-manifest
+integration time by that online value. Every excluded setup, inference,
+reconstruction, metric, and artifact stage is timed separately. One run, no
+warm-up, and no repeated average are required; the resulting speed-ups are
+machine-specific.
 
 ## Result artifacts and provenance
 
@@ -214,7 +265,29 @@ reproduction. Plot metadata identifies the legacy sigmoid benchmark, carries
 the manuscript-text discrepancy and author-confirmed figure-generation
 provenance, and records the physical phase-space mapping.
 
-Figure 5 has dedicated bundle-only commands:
+Figure 4 has dedicated bundle-only commands:
+
+```bash
+python scripts/1d/build_figure4_bundle.py \
+  --run-id <phase8-run-id> \
+  --output-dir <new-bundle-directory> \
+  --build
+
+python scripts/1d/plot_figure4.py \
+  --source-bundle <new-bundle-directory> \
+  --output-dir <new-plot-directory> \
+  --dry-run
+
+python scripts/1d/plot_figure4.py \
+  --source-bundle <new-bundle-directory> \
+  --output-dir <new-plot-directory>
+```
+
+The plot validates and consumes only the compact 48-case bundle. It writes a
+2-by-2 PNG/PDF composite, metadata JSON, and caption Markdown and cannot launch
+a solver.
+
+Figure 5 has corresponding bundle-only commands:
 
 ```bash
 python scripts/1d/build_figure5_bundle.py \
@@ -238,10 +311,13 @@ caption Markdown file, and refuses to overwrite an existing directory.
 
 ## Current limitations
 
-The original figure-generating source commit and dependency environment are
-not known, and nonlinear Figure 4 cases lack selected regularization
-provenance. The approved aggregate metric and timing boundaries are explicit
-repository regeneration definitions, not recovered historical provenance. A
-future production run must preserve the Git, runtime, catalog,
-configuration, dataset checksum, benchmark-variant, and manuscript-deviation
-provenance captured by the artifact schema.
+The original figure-generating source commit, dependency environment, and
+historical nonlinear Figure 4 selections are not known. Phase 8 values are
+regenerated under an author-approved current protocol and are tracked so that
+the regenerated study can be rerun without searching again. The tracked file is
+not evidence of the original selections. The approved aggregate metric and
+timing boundaries are explicit repository regeneration definitions, not
+recovered historical provenance. A future production run must preserve the
+Git, runtime, catalog, configuration, selected-parameter, dataset checksum,
+benchmark variant, and manuscript-deviation provenance captured by the artifact
+schema.

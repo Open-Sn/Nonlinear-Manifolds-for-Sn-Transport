@@ -1,26 +1,173 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Author-approved Figure 4 selected parameters",
+  "title": "Tracked regenerated Figure 4 selected parameters",
   "type": "object",
-  "required": ["schema_version", "catalog_checksum", "selection_objective", "search_result_provenance", "author_approval", "cases"],
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "benchmark_variant",
+    "result_label",
+    "parameter_provenance",
+    "specification_status",
+    "execution_ready",
+    "complete_publication_reproduction",
+    "historical_parameter_recovery",
+    "provenance_statements",
+    "selection_metric_id",
+    "timing_policy_id",
+    "search_run_id",
+    "relative_result_root_hint",
+    "search_definition_checksum_sha256",
+    "source_selected_parameter_content_checksum_sha256",
+    "source_selected_parameter_file_checksum_sha256",
+    "dataset_checksum_sha256",
+    "configuration_checksum_sha256",
+    "search_catalog_checksum_sha256",
+    "source_state_checksum_sha256",
+    "training_snapshot_count",
+    "regularization_scaling",
+    "cases",
+    "content_checksum_sha256"
+  ],
   "properties": {
     "schema_version": {"const": "1.0.0"},
-    "catalog_checksum": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-    "selection_objective": {"type": "string", "minLength": 1},
-    "search_result_provenance": {"type": "object"},
-    "author_approval": {"type": "object"},
+    "artifact_type": {"const": "tracked_figure4_selected_parameters"},
+    "benchmark_variant": {"const": "legacy_sigmoid"},
+    "result_label": {"const": "regenerated_sigmoid_benchmark"},
+    "parameter_provenance": {"const": "regenerated_sigmoid_search"},
+    "specification_status": {"const": "fully_specified"},
+    "execution_ready": {"const": true},
+    "complete_publication_reproduction": {"const": false},
+    "historical_parameter_recovery": {"const": false},
+    "provenance_statements": {
+      "type": "array",
+      "minItems": 3,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "selection_metric_id": {"const": "relative_space_time_l2_error_v1"},
+    "timing_policy_id": {"const": "rom_solve_ivp_only_v1"},
+    "search_run_id": {"const": "phase8-20260802T130106Z"},
+    "relative_result_root_hint": {
+      "type": "string",
+      "pattern": "^(?!/)(?![A-Za-z]:[\\\\/]).+"
+    },
+    "search_definition_checksum_sha256": {"$ref": "#/$defs/checksum"},
+    "source_selected_parameter_content_checksum_sha256": {"$ref": "#/$defs/checksum"},
+    "source_selected_parameter_file_checksum_sha256": {"$ref": "#/$defs/checksum"},
+    "dataset_checksum_sha256": {"$ref": "#/$defs/checksum"},
+    "configuration_checksum_sha256": {"$ref": "#/$defs/checksum"},
+    "search_catalog_checksum_sha256": {"$ref": "#/$defs/checksum"},
+    "source_state_checksum_sha256": {"$ref": "#/$defs/checksum"},
+    "training_snapshot_count": {"const": 7501},
+    "regularization_scaling": {
+      "type": "object",
+      "required": [
+        "gamma_coefficient_range",
+        "lambda_Q_coefficient_range",
+        "lambda_L",
+        "coefficient_application",
+        "inferred_gamma_policy"
+      ],
+      "properties": {
+        "gamma_coefficient_range": {
+          "type": "array",
+          "prefixItems": [{"const": 7e-10}, {"const": 5e-05}],
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "lambda_Q_coefficient_range": {
+          "type": "array",
+          "prefixItems": [{"const": 6e-09}, {"const": 0.0002}],
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "lambda_L": {"const": 0.0},
+        "coefficient_application": {"const": "applied ridge = coefficient * N_s exactly once"},
+        "inferred_gamma_policy": {"const": "reuse corresponding projected-selected gamma"}
+      },
+      "additionalProperties": false
+    },
     "cases": {
       "type": "object",
+      "minProperties": 32,
+      "maxProperties": 32,
+      "propertyNames": {
+        "pattern": "^fig4_(elementwise|tensorial)_(projected|inferred)_nr(8|16|24|32|40|48|56|64)$"
+      },
       "additionalProperties": {
-        "type": "object",
-        "required": ["gamma"],
-        "properties": {
-          "gamma": {"type": "number", "minimum": 0},
-          "lambda_L": {"type": ["number", "null"], "minimum": 0},
-          "lambda_Q": {"type": ["number", "null"], "minimum": 0}
-        },
-        "additionalProperties": false
+        "oneOf": [
+          {"$ref": "#/$defs/projected_case"},
+          {"$ref": "#/$defs/inferred_case"}
+        ]
       }
+    },
+    "content_checksum_sha256": {"$ref": "#/$defs/checksum"}
+  },
+  "$defs": {
+    "checksum": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "tie_policy_result": {
+      "type": "object",
+      "required": ["larger_regularization_chosen", "tied_candidate_ids"],
+      "properties": {
+        "larger_regularization_chosen": {"type": "boolean"},
+        "tied_candidate_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        }
+      },
+      "additionalProperties": false
+    },
+    "projected_case": {
+      "type": "object",
+      "required": ["model", "operator_type", "N_r", "N_q", "gamma", "applied_ridges", "origin", "tie_policy_result"],
+      "properties": {
+        "model": {"enum": ["elementwise", "tensorial"]},
+        "operator_type": {"const": "projected"},
+        "N_r": {"enum": [8, 16, 24, 32, 40, 48, 56, 64]},
+        "N_q": {"enum": [500, 508, 516, 524, 532, 540, 548, 556]},
+        "gamma": {"type": "number", "minimum": 7e-10, "maximum": 5e-05},
+        "applied_ridges": {
+          "type": "object",
+          "required": ["gamma"],
+          "properties": {"gamma": {"type": "number", "exclusiveMinimum": 0}},
+          "additionalProperties": false
+        },
+        "origin": {"enum": ["coarse", "refined"]},
+        "tie_policy_result": {"$ref": "#/$defs/tie_policy_result"}
+      },
+      "additionalProperties": false
+    },
+    "inferred_case": {
+      "type": "object",
+      "required": ["model", "operator_type", "N_r", "N_q", "gamma", "lambda_L", "lambda_Q", "applied_ridges", "origin", "tie_policy_result", "gamma_source_case_id"],
+      "properties": {
+        "model": {"enum": ["elementwise", "tensorial"]},
+        "operator_type": {"const": "inferred"},
+        "N_r": {"enum": [8, 16, 24, 32, 40, 48, 56, 64]},
+        "N_q": {"enum": [500, 508, 516, 524, 532, 540, 548, 556]},
+        "gamma": {"type": "number", "minimum": 7e-10, "maximum": 5e-05},
+        "lambda_L": {"const": 0.0},
+        "lambda_Q": {"type": "number", "minimum": 6e-09, "maximum": 0.0002},
+        "applied_ridges": {
+          "type": "object",
+          "required": ["gamma", "lambda_L", "lambda_Q"],
+          "properties": {
+            "gamma": {"type": "number", "exclusiveMinimum": 0},
+            "lambda_L": {"const": 0.0},
+            "lambda_Q": {"type": "number", "exclusiveMinimum": 0}
+          },
+          "additionalProperties": false
+        },
+        "origin": {"enum": ["coarse", "refined"]},
+        "tie_policy_result": {"$ref": "#/$defs/tie_policy_result"},
+        "gamma_source_case_id": {
+          "type": "string",
+          "pattern": "^fig4_(elementwise|tensorial)_projected_nr(8|16|24|32|40|48|56|64)$"
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false

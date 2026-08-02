@@ -16,11 +16,15 @@ from .config import OneDConfig, load_config
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CATALOG_PATH = REPOSITORY_ROOT / "configs" / "1d" / "publication" / "experiments.json"
+DEFAULT_FIGURE4_SELECTED_PARAMETERS_RELATIVE_PATH = (
+    "configs/1d/publication/figure4_selected_parameters.json"
+)
 LEGACY_CONFIG_RELATIVE_PATH = "configs/1d/legacy_production.json"
 LEGACY_CONFIG_CHECKSUM = "cc442174134332f4b722cfa65ef179e1abc350c3e27e342a8bfeb184aa1b2759"
 GOLDEN_CONTENT_CHECKSUM = "91c84e813e5cbfabd0bf0c5be436afc19e64152b7f06c9f1a572a76038108238"
 KNOWN_HISTORICAL_CATALOG_CHECKSUMS = {
     "c21db43a79d8343581862479289ed62780db9e74ff2b30f0129bf04204473c92",
+    "59788662d7f3a40b8366f0c91f6ff757ae41f6357eca16f6e7e54b419d0127ed",
 }
 BENCHMARK_VARIANT = "legacy_sigmoid"
 SIGMOID_FORMULA = "1 - 1 / (1 + exp(-100 * (x - 0.1)))"
@@ -33,6 +37,36 @@ SPECIFICATION_STATUSES = {
 MODEL_TYPES = {"pod_analysis", "linear", "elementwise", "tensorial", "comparison_study"}
 OPERATOR_TYPES = {None, "projected", "inferred"}
 CASE_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_]*$")
+FIGURE4_RANKS = (8, 16, 24, 32, 40, 48, 56, 64)
+FIGURE4_NONLINEAR_MODELS = ("elementwise", "tensorial")
+FIGURE4_OPERATOR_TYPES = ("projected", "inferred")
+FIGURE4_TOTAL_NONLINEAR_DIMENSION = 564
+FIGURE4_TRAINING_SNAPSHOT_COUNT = 7501
+FIGURE4_PARAMETER_PROVENANCE = "regenerated_sigmoid_search"
+FIGURE4_SELECTION_METRIC_ID = "relative_space_time_l2_error_v1"
+FIGURE4_TIMING_POLICY_ID = "rom_solve_ivp_only_v1"
+FIGURE4_EXPECTED_SOURCE_METADATA = {
+    "search_run_id": "phase8-20260802T130106Z",
+    "search_definition_checksum_sha256": (
+        "db6741a48f446fd3bc72ed450efe24b59b8562c77f747be7b19ffbcfd9e8309b"
+    ),
+    "source_selected_parameter_content_checksum_sha256": (
+        "c4f567bf3c7390ebe79f73727bee9b42edbc68bc367863ab97b65a2c72b7f366"
+    ),
+    "source_selected_parameter_file_checksum_sha256": (
+        "8ba6e39760425accf40688ceddfb8aaf90e97723d4de1f14fa8b14931dd1be2f"
+    ),
+    "dataset_checksum_sha256": (
+        "a3885dc5a071f67afb514e3d130d15cd993737a174313084f7e1ed0911cef6b3"
+    ),
+    "configuration_checksum_sha256": LEGACY_CONFIG_CHECKSUM,
+    "search_catalog_checksum_sha256": (
+        "59788662d7f3a40b8366f0c91f6ff757ae41f6357eca16f6e7e54b419d0127ed"
+    ),
+    "source_state_checksum_sha256": (
+        "6868f3c71323977320be6c6dd9142ef9c2cfc9cc4bb8fa39d47a60a00dc92f38"
+    ),
+}
 
 EXPECTED_DEVIATION = {
     "initial_condition": {
@@ -49,7 +83,13 @@ AUTHOR_CONFIRMED_SIGMOID_PROVENANCE = {
         "localized sigmoid in final positive angular block"
     ),
     "provenance_status": "author_confirmed_figure_generation_configuration",
-    "author_confirmation_scope": ["Figure 1", "Figure 2", "Figure 3"],
+    "author_confirmation_scope": [
+        "Figure 1",
+        "Figure 2",
+        "Figure 3",
+        "Figure 4",
+        "Figure 5",
+    ],
     "repository_reproduction_scope": [
         "Figure 1",
         "Figure 2",
@@ -150,6 +190,13 @@ class PublicationDryRunReport:
     lambda_Q: float | None
     inference_tolerance: float | None
     maximum_iterations: int | None
+    N_s: int
+    applied_ridges: dict[str, float]
+    parameter_provenance: str
+    selected_parameter_file: str | None
+    selection_metric_id: str
+    timing_policy_id: str
+    complete_publication_reproduction: bool
     expected_snapshot_path: str
     expected_snapshot_shape: tuple[int, int]
     expected_training_snapshot_count: int
@@ -180,6 +227,238 @@ def _load_json(path: Path) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError("publication catalog root must be a JSON object")
     return data
+
+
+def _canonical_checksum(value: Any) -> str:
+    canonical = json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _is_portable_relative_path(value: str) -> bool:
+    return bool(value) and not Path(value).is_absolute() and not re.match(
+        r"^[A-Za-z]:[\\/]", value
+    )
+
+
+def _expected_figure4_nonlinear_case_ids() -> set[str]:
+    return {
+        f"fig4_{model}_{operators}_nr{rank}"
+        for model in FIGURE4_NONLINEAR_MODELS
+        for operators in FIGURE4_OPERATOR_TYPES
+        for rank in FIGURE4_RANKS
+    }
+
+
+def _validate_positive_coefficient(
+    value: Any,
+    *,
+    lower: float,
+    upper: float,
+    label: str,
+) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{label} must be a finite numeric coefficient")
+    coefficient = float(value)
+    if not math.isfinite(coefficient) or not lower <= coefficient <= upper:
+        raise ValueError(f"{label} is outside the approved Figure 4 search range")
+    return coefficient
+
+
+def load_figure4_selected_parameters(path: str | Path) -> dict[str, Any]:
+    """Load and strictly validate the portable regenerated Figure 4 selections."""
+    selected_path = Path(path)
+    if not selected_path.is_file():
+        raise FileNotFoundError(
+            f"tracked Figure 4 selected-parameter file is missing: {selected_path}"
+        )
+    value = _load_json(selected_path)
+    payload = dict(value)
+    checksum = payload.pop("content_checksum_sha256", None)
+    if checksum != _canonical_checksum(payload):
+        raise ValueError("tracked Figure 4 selected-parameter checksum mismatch")
+
+    expected_top_level = {
+        "schema_version",
+        "artifact_type",
+        "benchmark_variant",
+        "result_label",
+        "parameter_provenance",
+        "specification_status",
+        "execution_ready",
+        "complete_publication_reproduction",
+        "historical_parameter_recovery",
+        "provenance_statements",
+        "selection_metric_id",
+        "timing_policy_id",
+        "search_run_id",
+        "relative_result_root_hint",
+        "search_definition_checksum_sha256",
+        "source_selected_parameter_content_checksum_sha256",
+        "source_selected_parameter_file_checksum_sha256",
+        "dataset_checksum_sha256",
+        "configuration_checksum_sha256",
+        "search_catalog_checksum_sha256",
+        "source_state_checksum_sha256",
+        "training_snapshot_count",
+        "regularization_scaling",
+        "cases",
+        "content_checksum_sha256",
+    }
+    if set(value) != expected_top_level:
+        raise ValueError("tracked Figure 4 selected-parameter fields are incomplete or unexpected")
+    expected_constants = {
+        "schema_version": "1.0.0",
+        "artifact_type": "tracked_figure4_selected_parameters",
+        "benchmark_variant": BENCHMARK_VARIANT,
+        "result_label": "regenerated_sigmoid_benchmark",
+        "parameter_provenance": FIGURE4_PARAMETER_PROVENANCE,
+        "specification_status": "fully_specified",
+        "execution_ready": True,
+        "complete_publication_reproduction": False,
+        "historical_parameter_recovery": False,
+        "selection_metric_id": FIGURE4_SELECTION_METRIC_ID,
+        "timing_policy_id": FIGURE4_TIMING_POLICY_ID,
+        "training_snapshot_count": FIGURE4_TRAINING_SNAPSHOT_COUNT,
+    }
+    for key, expected in expected_constants.items():
+        if value.get(key) != expected:
+            raise ValueError(f"tracked Figure 4 selected parameters have invalid {key}")
+    for key, expected in FIGURE4_EXPECTED_SOURCE_METADATA.items():
+        if value.get(key) != expected:
+            raise ValueError(f"tracked Figure 4 selected parameters have invalid {key}")
+    if not _is_portable_relative_path(value["relative_result_root_hint"]):
+        raise ValueError("tracked Figure 4 result-root hint must be a portable relative path")
+    statements = value.get("provenance_statements")
+    if not isinstance(statements, list) or not all(
+        isinstance(statement, str) and statement for statement in statements
+    ):
+        raise ValueError("tracked Figure 4 provenance statements are invalid")
+    normalized_statements = " ".join(statements).lower()
+    for required_phrase in ("not recovered historical", "sigmoid", "exactly once"):
+        if required_phrase not in normalized_statements:
+            raise ValueError(
+                f"tracked Figure 4 provenance must state {required_phrase!r}"
+            )
+
+    scaling = value.get("regularization_scaling")
+    expected_scaling = {
+        "gamma_coefficient_range": [7.0e-10, 5.0e-5],
+        "lambda_Q_coefficient_range": [6.0e-9, 2.0e-4],
+        "lambda_L": 0.0,
+        "coefficient_application": "applied ridge = coefficient * N_s exactly once",
+        "inferred_gamma_policy": "reuse corresponding projected-selected gamma",
+    }
+    if scaling != expected_scaling:
+        raise ValueError("tracked Figure 4 regularization-scaling policy is invalid")
+
+    cases = value.get("cases")
+    if not isinstance(cases, dict) or set(cases) != _expected_figure4_nonlinear_case_ids():
+        raise ValueError("tracked Figure 4 selections require the exact 32 nonlinear cases")
+    combinations: set[tuple[str, str, int]] = set()
+    for case_id, case in cases.items():
+        if not isinstance(case, dict):
+            raise ValueError(f"tracked Figure 4 case {case_id} must be an object")
+        model = case.get("model")
+        operators = case.get("operator_type")
+        rank = case.get("N_r")
+        expected_id = f"fig4_{model}_{operators}_nr{rank}"
+        if (
+            model not in FIGURE4_NONLINEAR_MODELS
+            or operators not in FIGURE4_OPERATOR_TYPES
+            or rank not in FIGURE4_RANKS
+            or case_id != expected_id
+        ):
+            raise ValueError(f"tracked Figure 4 case identity mismatch: {case_id}")
+        combination = (model, operators, rank)
+        if combination in combinations:
+            raise ValueError("tracked Figure 4 model/operator/rank combinations are not unique")
+        combinations.add(combination)
+        if case.get("N_q") != FIGURE4_TOTAL_NONLINEAR_DIMENSION - rank:
+            raise ValueError(f"tracked Figure 4 dimensions do not sum to 564: {case_id}")
+        gamma = _validate_positive_coefficient(
+            case.get("gamma"), lower=7.0e-10, upper=5.0e-5, label=f"{case_id} gamma"
+        )
+        if case.get("origin") not in {"coarse", "refined"}:
+            raise ValueError(f"tracked Figure 4 selection origin is invalid: {case_id}")
+        tie = case.get("tie_policy_result")
+        if not isinstance(tie, dict) or set(tie) != {
+            "larger_regularization_chosen",
+            "tied_candidate_ids",
+        }:
+            raise ValueError(f"tracked Figure 4 tie-policy result is invalid: {case_id}")
+        if not isinstance(tie["larger_regularization_chosen"], bool):
+            raise ValueError(f"tracked Figure 4 tie-policy flag is invalid: {case_id}")
+        tied_ids = tie["tied_candidate_ids"]
+        if (
+            not isinstance(tied_ids, list)
+            or not tied_ids
+            or len(tied_ids) != len(set(tied_ids))
+            or not all(isinstance(candidate_id, str) and candidate_id for candidate_id in tied_ids)
+        ):
+            raise ValueError(f"tracked Figure 4 tied candidate IDs are invalid: {case_id}")
+
+        ridges = case.get("applied_ridges")
+        if not isinstance(ridges, dict):
+            raise ValueError(f"tracked Figure 4 applied ridges are invalid: {case_id}")
+        if ridges.get("gamma") != gamma * FIGURE4_TRAINING_SNAPSHOT_COUNT:
+            raise ValueError(f"tracked Figure 4 gamma ridge is not coefficient*N_s: {case_id}")
+        common_fields = {
+            "model",
+            "operator_type",
+            "N_r",
+            "N_q",
+            "gamma",
+            "applied_ridges",
+            "origin",
+            "tie_policy_result",
+        }
+        if operators == "projected":
+            if set(case) != common_fields or set(ridges) != {"gamma"}:
+                raise ValueError(
+                    f"projected Figure 4 selection carries inapplicable fields: {case_id}"
+                )
+        else:
+            expected_fields = common_fields | {
+                "lambda_L",
+                "lambda_Q",
+                "gamma_source_case_id",
+            }
+            if set(case) != expected_fields or set(ridges) != {
+                "gamma",
+                "lambda_L",
+                "lambda_Q",
+            }:
+                raise ValueError(f"inferred Figure 4 selection fields are invalid: {case_id}")
+            lambda_q = _validate_positive_coefficient(
+                case.get("lambda_Q"),
+                lower=6.0e-9,
+                upper=2.0e-4,
+                label=f"{case_id} lambda_Q",
+            )
+            if case.get("lambda_L") != 0.0 or ridges.get("lambda_L") != 0.0:
+                raise ValueError(f"inferred Figure 4 lambda_L must be zero: {case_id}")
+            if ridges.get("lambda_Q") != lambda_q * FIGURE4_TRAINING_SNAPSHOT_COUNT:
+                raise ValueError(
+                    f"tracked Figure 4 lambda_Q ridge is not coefficient*N_s: {case_id}"
+                )
+            projected_id = f"fig4_{model}_projected_nr{rank}"
+            if case.get("gamma_source_case_id") != projected_id:
+                raise ValueError(f"inferred Figure 4 gamma source is invalid: {case_id}")
+
+    for model in FIGURE4_NONLINEAR_MODELS:
+        for rank in FIGURE4_RANKS:
+            projected = cases[f"fig4_{model}_projected_nr{rank}"]
+            inferred = cases[f"fig4_{model}_inferred_nr{rank}"]
+            if inferred["gamma"] != projected["gamma"]:
+                raise ValueError(
+                    f"inferred Figure 4 gamma does not reuse projected selection: {model}/N_r={rank}"
+                )
+    return value
 
 
 def _reject_initial_condition_overrides(raw: dict[str, Any]) -> None:
@@ -329,7 +608,10 @@ def _case_from_dict(raw: dict[str, Any]) -> PublicationCase:
     return case
 
 
-def _expand_figure4_family(raw: dict[str, Any]) -> Iterable[PublicationCase]:
+def _expand_figure4_family(
+    raw: dict[str, Any],
+    selected_parameters: dict[str, Any],
+) -> Iterable[PublicationCase]:
     _reject_initial_condition_overrides(raw)
     dimensions = raw["latent_dimensions"]
     total_dimension = int(raw["total_dimension"])
@@ -338,15 +620,8 @@ def _expand_figure4_family(raw: dict[str, Any]) -> Iterable[PublicationCase]:
             for latent in dimensions:
                 latent = int(latent)
                 linear = model == "linear"
-                missing: list[str] = []
-                if not linear:
-                    missing.append(
-                        f"author-selected gamma for {model}/{operators}/N_r={latent}",
-                    )
-                if not linear and operators == "inferred":
-                    missing.append(
-                        f"author-selected lambda_Q for {model}/{operators}/N_r={latent}",
-                    )
+                case_id = f"fig4_{model}_{operators}_nr{latent}"
+                selected = None if linear else selected_parameters["cases"][case_id]
                 if linear:
                     parameter_sweep = {
                         "latent_dimensions": dimensions,
@@ -362,6 +637,11 @@ def _expand_figure4_family(raw: dict[str, Any]) -> Iterable[PublicationCase]:
                         "The linear dynamical model is fully parameterized.",
                         "The author-approved aggregate metric and online timing policy apply.",
                     ]
+                    provenance = {
+                        **raw["provenance"],
+                        "parameter_provenance": "catalog_direct_linear",
+                        "complete_publication_reproduction": False,
+                    }
                 else:
                     parameter_sweep = {
                         "latent_dimensions": dimensions,
@@ -371,12 +651,60 @@ def _expand_figure4_family(raw: dict[str, Any]) -> Iterable[PublicationCase]:
                         "lambda_Q_candidate_range": raw["lambda_Q_candidate_range"],
                         "lambda_L": 0.0,
                         "selected_parameter_file_schema": raw["selected_parameter_file_schema"],
-                        "selection_policy": "no selection without an explicit objective, search result, and author-approved provenance",
+                        "selected_parameter_file": raw["selected_parameter_file"],
+                        "selected_parameter_content_checksum_sha256": selected_parameters[
+                            "content_checksum_sha256"
+                        ],
+                        "training_snapshot_count": selected_parameters[
+                            "training_snapshot_count"
+                        ],
+                        "applied_ridges": selected["applied_ridges"],
+                        "selection_origin": selected["origin"],
+                        "tie_policy_result": selected["tie_policy_result"],
+                        "selection_policy": (
+                            "reviewed regenerated Phase 8 selection; search is not invoked during execution"
+                        ),
                     }
-                    reported_metadata = raw["reported_manuscript_metadata"]
+                    reported_metadata = {
+                        **raw["reported_manuscript_metadata"],
+                        "selected_parameter_provenance": FIGURE4_PARAMETER_PROVENANCE,
+                        "historical_parameter_recovery": False,
+                    }
                     notes = raw["notes"]
+                    provenance = {
+                        **raw["provenance"],
+                        "parameter_provenance": FIGURE4_PARAMETER_PROVENANCE,
+                        "selected_parameter_file": raw["selected_parameter_file"],
+                        "selected_parameter_content_checksum_sha256": selected_parameters[
+                            "content_checksum_sha256"
+                        ],
+                        "source_selected_parameter_content_checksum_sha256": (
+                            selected_parameters[
+                                "source_selected_parameter_content_checksum_sha256"
+                            ]
+                        ),
+                        "search_run_id": selected_parameters["search_run_id"],
+                        "search_definition_checksum_sha256": selected_parameters[
+                            "search_definition_checksum_sha256"
+                        ],
+                        "dataset_checksum_sha256": selected_parameters[
+                            "dataset_checksum_sha256"
+                        ],
+                        "source_state_checksum_sha256": selected_parameters[
+                            "source_state_checksum_sha256"
+                        ],
+                        "training_snapshot_count": selected_parameters[
+                            "training_snapshot_count"
+                        ],
+                        "applied_ridges": selected["applied_ridges"],
+                        "selection_origin": selected["origin"],
+                        "tie_policy_result": selected["tie_policy_result"],
+                        "gamma_source_case_id": selected.get("gamma_source_case_id"),
+                        "historical_parameter_recovery": False,
+                        "complete_publication_reproduction": False,
+                    }
                 case_raw = {
-                    "case_id": f"fig4_{model}_{operators}_nr{latent}",
+                    "case_id": case_id,
                     "figure": "Figure 4",
                     "purpose": raw["purpose"],
                     "title": f"Figure 4 {model} {operators} case at N_r={latent}",
@@ -388,9 +716,15 @@ def _expand_figure4_family(raw: dict[str, Any]) -> Iterable[PublicationCase]:
                     "operator_construction": operators,
                     "latent_dimension": latent,
                     "lifting_dimension": None if linear else total_dimension - latent,
-                    "lifting_regularization_gamma": None,
+                    "lifting_regularization_gamma": (
+                        None if linear else selected["gamma"]
+                    ),
                     "lambda_L": 0.0 if operators == "inferred" else None,
-                    "lambda_Q": None,
+                    "lambda_Q": (
+                        selected["lambda_Q"]
+                        if not linear and operators == "inferred"
+                        else None
+                    ),
                     "inference_tolerance": (
                         1.0e-6 if operators == "inferred" and not linear else None
                     ),
@@ -403,14 +737,12 @@ def _expand_figure4_family(raw: dict[str, Any]) -> Iterable[PublicationCase]:
                     "required_input_snapshot": raw["required_input_snapshot"],
                     "requested_outputs": raw["requested_outputs"],
                     "expected_artifact_names": raw["expected_artifact_names"],
-                    "specification_status": (
-                        "fully_specified" if linear else "requires_author_input"
-                    ),
-                    "missing_information": missing,
-                    "execution_allowed": linear,
+                    "specification_status": "fully_specified",
+                    "missing_information": [],
+                    "execution_allowed": True,
                     "reported_manuscript_metadata": reported_metadata,
                     "notes": notes,
-                    "provenance": raw["provenance"],
+                    "provenance": provenance,
                 }
                 yield _case_from_dict(case_raw)
 
@@ -457,7 +789,32 @@ def load_publication_catalog(
     cases = [_case_from_dict(raw) for raw in data.get("cases", [])]
     family = data.get("figure4_case_family")
     if family is not None:
-        cases.extend(_expand_figure4_family(family))
+        selected_relative_path = family.get("selected_parameter_file")
+        if not isinstance(selected_relative_path, str) or not _is_portable_relative_path(
+            selected_relative_path
+        ):
+            raise ValueError(
+                "Figure 4 selected_parameter_file must be a portable relative path"
+            )
+        selected_parameters = load_figure4_selected_parameters(
+            root / selected_relative_path
+        )
+        if (
+            family.get("selected_parameter_content_checksum_sha256")
+            != selected_parameters["content_checksum_sha256"]
+        ):
+            raise ValueError(
+                "Figure 4 catalog and tracked selected-parameter checksums do not match"
+            )
+        if family.get("parameter_provenance") != FIGURE4_PARAMETER_PROVENANCE:
+            raise ValueError("Figure 4 catalog has invalid regenerated parameter provenance")
+        if (
+            family.get("specification_status") != "fully_specified"
+            or family.get("execution_ready") is not True
+            or family.get("complete_publication_reproduction") is not False
+        ):
+            raise ValueError("Figure 4 catalog readiness metadata is invalid")
+        cases.extend(_expand_figure4_family(family, selected_parameters))
     identifiers = [case.case_id for case in cases]
     if len(identifiers) != len(set(identifiers)):
         raise ValueError("publication catalog case IDs must be unique")
@@ -526,6 +883,12 @@ def publication_case_summary(case: PublicationCase) -> dict[str, Any]:
         "gamma": case.lifting_regularization_gamma,
         "lambda_L": case.lambda_L,
         "lambda_Q": case.lambda_Q,
+        "N_s": case.provenance.get("training_snapshot_count"),
+        "applied_ridges": case.provenance.get("applied_ridges", {}),
+        "parameter_provenance": case.provenance.get("parameter_provenance"),
+        "selected_parameter_file": case.provenance.get("selected_parameter_file"),
+        "selection_metric_id": case.provenance.get("metric_id"),
+        "timing_policy_id": case.provenance.get("online_timing_id"),
         "status": case.specification_status,
         "execution_ready": case.execution_allowed,
         "missing_author_inputs": list(case.missing_information),
@@ -610,6 +973,21 @@ def dry_run_publication_case(
         lambda_Q=case.lambda_Q,
         inference_tolerance=case.inference_tolerance,
         maximum_iterations=case.maximum_iterations,
+        N_s=training_count,
+        applied_ridges=dict(case.provenance.get("applied_ridges", {})),
+        parameter_provenance=case.provenance.get(
+            "parameter_provenance", "catalog_direct"
+        ),
+        selected_parameter_file=case.provenance.get("selected_parameter_file"),
+        selection_metric_id=case.provenance.get(
+            "metric_id", FIGURE4_SELECTION_METRIC_ID
+        ),
+        timing_policy_id=case.provenance.get(
+            "online_timing_id", FIGURE4_TIMING_POLICY_ID
+        ),
+        complete_publication_reproduction=case.provenance.get(
+            "complete_publication_reproduction", False
+        ),
         expected_snapshot_path=str(path),
         expected_snapshot_shape=config.expected_snapshot_shape,
         expected_training_snapshot_count=training_count,

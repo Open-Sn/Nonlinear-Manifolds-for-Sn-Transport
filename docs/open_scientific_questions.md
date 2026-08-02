@@ -1,7 +1,7 @@
 # Open scientific and provenance questions
 
 The manuscript states zero initial angular flux, but the authors confirm that
-the numerical calculations used for its one-dimensional Figures 1--3 employed
+the numerical calculations used for its one-dimensional figures employed
 the localized sigmoid in the final positive angular block. The authoritative
 configuration is `configs/1d/legacy_production.json`; the repository retains
 it as the reproduction workflow for Figures 1--5. This transparent text/code
@@ -16,8 +16,10 @@ The remaining scientific and publication-provenance questions are:
    published figures have not yet been established.
 3. The current algebraic mass norm does not add angular quadrature weights.
    This convention is preserved in Phase 1 and should be reviewed separately.
-4. Figure 4 exact selected nonlinear regularization values and their selection
-   provenance are not available for every case.
+4. Historical Figure 4 selected nonlinear regularization values and their
+   selection provenance are unavailable. Phase 8 addresses current
+   regeneration with a separate author-approved, checksummed search; it does
+   not recover this historical provenance.
 
 The aggregate Figure 4/5 metric and Figure 5 online timing boundary are no
 longer open questions. An author approved explicit repository definitions for
@@ -25,5 +27,5 @@ sigmoid-benchmark regeneration. Those decisions are documented in
 `docs/1d_figure4_5_provenance.md` and are not presented as historical-source
 recovery.
 
-These items are not resolved by the software-verification tests. They remain
-preserved pending provenance review and require author confirmation.
+These historical items are not resolved by software-verification tests. They
+remain preserved as limitations even when the regenerated studies complete.

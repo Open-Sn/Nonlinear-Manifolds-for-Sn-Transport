@@ -329,7 +329,7 @@ def test_listing_inspection_and_dry_runs_are_read_only(tmp_path):
     )
     assert default_safe.returncode == 0, default_safe.stderr
     assert json.loads(default_safe.stdout)["writes_files"] is False
-    under_specified = _run_script(
+    regenerated = _run_script(
         [
             str(SCRIPTS / "run_publication_case.py"),
             "fig4_tensorial_inferred_nr32",
@@ -338,10 +338,21 @@ def test_listing_inspection_and_dry_runs_are_read_only(tmp_path):
             str(output_root),
         ]
     )
-    assert under_specified.returncode == 0, under_specified.stderr
-    data = json.loads(under_specified.stdout)
-    assert data["action"] == "refuse_under_specified"
-    assert any("author-selected gamma" in item for item in data["missing_information"])
+    assert regenerated.returncode == 0, regenerated.stderr
+    data = json.loads(regenerated.stdout)
+    assert data["action"] == "refuse_missing_snapshot"
+    assert data["missing_information"] == []
+    assert data["lifting_regularization_gamma"] == 2.301086946936585e-08
+    assert data["lambda_Q"] == 2.9800996046956936e-07
+    assert data["N_s"] == 7501
+    assert data["applied_ridges"] == {
+        "gamma": 0.00017260453188971324,
+        "lambda_L": 0.0,
+        "lambda_Q": 0.0022353727134822397,
+    }
+    assert data["parameter_provenance"] == "regenerated_sigmoid_search"
+    assert data["selection_metric_id"] == "relative_space_time_l2_error_v1"
+    assert data["timing_policy_id"] == "rom_solve_ivp_only_v1"
     for case_id, expected_lambda_L in (
         ("fig4_linear_projected_nr32", None),
         ("fig4_linear_inferred_nr32", 0.0),

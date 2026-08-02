@@ -16,7 +16,7 @@ sigmoid
 
 in the final positive angular block. Its amplitude is one, its transition is
 at `x=0.1`, and its steepness is `100`. The manuscript states zero initial
-angular flux, but the authors confirm that the one-dimensional Figure 1--3
+angular flux, but the authors confirm that the one-dimensional figure
 calculations used this sigmoid workflow. The repository therefore retains it
 as the authoritative numerical workflow for reproducing Figures 1--5. The
 text/configuration discrepancy is recorded transparently; it is not a defect,
@@ -49,7 +49,7 @@ The resolved catalog contains 57 cases: 1 for Figure 1, 3 for Figure 2,
 | Figure 4 ranks | `N_r=[8,16,24,32,40,48,56,64]`; nonlinear `N_q=564-N_r`; linear dimension `N_r` with `N_q` not applicable | Reported study design |
 | Figure 4 series | Linear, elementwise, and tensorial, each with projected and inferred operators | Six series; 48 cases total |
 | Figure 4 search ranges | `gamma` from approximately `7e-10` to `5e-5`; `lambda_Q` from approximately `6e-9` to `2e-4`; `lambda_L=0` | Candidate ranges only |
-| Figure 4 nonlinear selections | Per-rank/per-lifting selected `gamma` and inferred `lambda_Q` | Not available; requires author input |
+| Figure 4 nonlinear selections | Per-rank/per-lifting selected `gamma` and inferred `lambda_Q` | Historical values unavailable; Phase 8 regenerated protocol author-approved |
 | Figure 4 linear status | Model dimension `N_r`; inferred `lambda_L=0`; no nonlinear regularization or alternating-minimization controls | Fully specified with approved metric/timing policy |
 | Figure 5 ranks | `N_r=32`; `N_q=[1,2,4,8,16,32,64,128]` | Reported study design |
 | Figure 5 tensorial | `gamma=2.5e-8`; inferred `lambda_L=0`, `lambda_Q=4e-7` | Reported constants |
@@ -72,22 +72,37 @@ over `[0,10]`, including both endpoints. This is an explicit regeneration
 definition, not a historically recovered implementation. The preserved mass
 matrix does not add angular quadrature weights.
 
-Figure 5 uses online timing policy `rom_solve_ivp_only_v1`: wall-clock time
-inside the reduced `solve_ivp` call only. Speed-up divides the exact validated
-FOM-manifest integration time by that online value. Setup, lifting, projection,
-inference, initialization, reconstruction, metric evaluation, and writing are
-excluded and reported separately. One measured run with no warm-up or average
-is sufficient; values are machine-specific rather than scientific golden
-data.
+Figures 4 and 5 use online timing policy `rom_solve_ivp_only_v1`: wall-clock
+time inside the reduced `solve_ivp` call only. Speed-up divides the exact
+validated FOM-manifest integration time by that online value. Setup, lifting,
+projection, inference, initialization, reconstruction, metric evaluation, and
+writing are excluded and reported separately. One measured run with no warm-up
+or average is sufficient; values are machine-specific rather than scientific
+golden data.
 
-Both Figure 5 aggregate cases and all 16 linear Figure 4 cases are fully
-specified. The 32 nonlinear Figure 4 cases remain refused because their
-rank-specific selected `gamma` and inferred `lambda_Q` values are unavailable.
+Both Figure 5 aggregate cases and all 48 Figure 4 cases are fully specified.
+The 16 linear Figure 4 cases remain specified directly by the catalog. The 32
+nonlinear cases resolve their reviewed regenerated coefficients through
+`figure4_selected_parameters.json`; catalog inspection, dry runs, and execution
+do not read the Phase 8 result directory or invoke the search.
 
-## Figure 4 author input
+## Figure 4 regenerated selection
 
-`figure4_selected_parameters.schema.json` defines the future input contract.
-It contains no fabricated selections. A valid file must identify the catalog,
-selection objective, search-result provenance, author approval, and selected
-values for each case. Candidate ranges alone are never used to select a best
-value.
+`figure4_selected_parameters.schema.json` defines the strict tracked
+configuration contract. `figure4_selected_parameters.json` records all 32
+reviewed selections, their applied `N_s=7501` ridges, projected-to-inferred
+gamma reuse, selection origins and tie outcomes, and portable checksummed
+provenance. The values are identified as `regenerated_sigmoid_search`; they
+were selected by the documented Phase 8 search on the author-confirmed sigmoid
+benchmark and are not recovered historical manuscript parameters.
+
+A fresh clone can therefore resolve and rerun an individual nonlinear Figure 4
+case from the tracked catalog/configuration, a valid production snapshot, and
+the shared-offline workflow without repeating the regularization search. The
+Phase 8 search driver remains available to verify the selection procedure. Its
+generated detailed and proposed artifacts are provenance sources, not runtime
+dependencies. Candidate ranges alone are never treated as selected values.
+
+`figure4_parameter_evidence.json` remains the unchanged historical evidence
+inventory. It records the unsuccessful recovery of the original selections;
+the new tracked regenerated configuration does not supersede that finding.

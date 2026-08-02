@@ -207,6 +207,13 @@ cython_debug/
 /results/1d/publication/shared_offline/*/*/data/*.npy
 /results/1d/publication/shared_offline/*/*/data/*.npz
 
+# Generated deterministic 1-D reproduction archives and transient staging trees.
+/dist/1d/*.tar.gz
+/dist/1d/*.tar.zst
+/dist/1d/*.sha256
+/dist/1d/.staging-*/
+/dist/1d/.verify-*/
+
 # Marimo
 marimo/_static/
 marimo/_lsp/

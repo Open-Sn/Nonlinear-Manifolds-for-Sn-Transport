@@ -42,21 +42,42 @@ python scripts/1d/build_reproduction_archives.py --kind both --dry-run
 python scripts/1d/build_reproduction_archives.py --kind both
 ```
 
+For a reserved, unpublished repository DOI, supply the plain DOI at build
+time rather than editing generated archive contents:
+
+```bash
+python scripts/1d/build_reproduction_archives.py \
+  --kind both \
+  --output-dir <new-immutable-output-directory> \
+  --doi 10.5281/zenodo.21762243 \
+  --dry-run
+```
+
+After committing all DOI-support source changes, repeat without `--dry-run`.
+The builder derives the canonical `https://doi.org/...` URL and records the
+DOI as `reserved_unpublished` with record type `dataset`. In each archive it
+writes the DOI to `README.md`, `archive_metadata.json`, `CITATION.md`, and
+`provenance/archive_provenance.json`. The audit README states that the
+supplement accompanies and depends on the core archive under the same dataset
+record. The DOI can alternatively be supplied as a top-level `doi` string in
+an archive specification; a conflicting command-line value is rejected.
+
 The builder pins every authoritative run in
 `configs/1d/publication/archive_spec.json`, rejects a differing run ID unless
 it is both explicitly supplied and explicitly allowed, checks core/audit
 non-overlap, and refuses to overwrite either an archive or its checksum
-sidecar. It uses deterministic `tar.gz` when `zstd` is unavailable. Generated
-archives and `.sha256` sidecars are untracked under `dist/1d/`.
+sidecar. The checked-in `HEAD` source sentinel is resolved to the full and
+short immutable commit IDs before naming or packaging, and an actual build
+requires a clean tracked worktree and index. It prefers deterministic
+`tar.zst`, using deterministic `tar.gz` only when `zstd` is unavailable.
+Generated archives and `.sha256` sidecars are untracked under `dist/1d/`.
 
 Verify each archive independently. A neighboring `.sha256` sidecar is used by
 default:
 
 ```bash
-python scripts/1d/verify_reproduction_archive.py \
-  dist/1d/nonlinear-manifolds-1d-core-f2fb29b-20260802.tar.zst
-python scripts/1d/verify_reproduction_archive.py \
-  dist/1d/nonlinear-manifolds-1d-audit-f2fb29b-20260802.tar.zst
+python scripts/1d/verify_reproduction_archive.py <core-archive.tar.zst>
+python scripts/1d/verify_reproduction_archive.py <audit-archive.tar.zst>
 ```
 
 To retain a complete extraction, provide a new destination. The verifier
@@ -65,7 +86,7 @@ device entries, missing files, extra files, and checksum or inventory
 disagreements:
 
 ```bash
-python scripts/1d/verify_reproduction_archive.py <archive.tar.gz> \
+python scripts/1d/verify_reproduction_archive.py <archive.tar.zst> \
   --extract-to <new-empty-destination>
 ```
 
@@ -77,7 +98,7 @@ network access:
 ```bash
 git clone 1d_reproduction/source/repository.bundle 1d-source
 cd 1d-source
-git checkout f2fb29b0fe7605dfbff0d42c7db552428c79876a
+git checkout <source-commit-from-archive_metadata.json>
 ```
 
 The scientific data can be used directly from the extracted core tree or

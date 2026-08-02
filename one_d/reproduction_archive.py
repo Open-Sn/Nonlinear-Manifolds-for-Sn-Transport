@@ -7,6 +7,7 @@ plotting entry points.
 
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass
 import fnmatch
 import gzip
@@ -35,6 +36,7 @@ CONTROL_FILES = {
 }
 TEXT_SUFFIXES = {".json", ".md", ".txt", ".tsv", ".csv"}
 ARCHIVE_ROOTS = {"core": "1d_reproduction", "audit": "1d_audit_supplement"}
+DOI_PATTERN = re.compile(r"^10\.[0-9]{4,9}/[A-Za-z0-9][A-Za-z0-9._;()/:+-]*$")
 
 
 @dataclass(frozen=True)
@@ -129,6 +131,50 @@ def source_state(root: str | Path = REPOSITORY_ROOT) -> dict[str, Any]:
         "index_clean": not bool(staged),
         "tracked_worktree_clean": not bool(tracked_changes),
     }
+
+
+def resolve_source_spec(
+    spec: Mapping[str, Any],
+    repository_root: str | Path = REPOSITORY_ROOT,
+) -> dict[str, Any]:
+    """Resolve an explicit HEAD sentinel to immutable source identifiers."""
+    resolved = copy.deepcopy(dict(spec))
+    configured = resolved["source"]
+    if configured.get("commit") != "HEAD":
+        return resolved
+    if configured.get("short_commit") not in {None, "HEAD"}:
+        raise ValueError("HEAD source specifications must use short_commit=HEAD")
+    state = source_state(repository_root)
+    configured["commit"] = state["commit"]
+    configured["short_commit"] = state["short_commit"]
+    return resolved
+
+
+def reserved_doi_metadata(value: str) -> dict[str, str]:
+    """Validate a plain DOI and return reserved, unpublished record metadata."""
+    doi = value.strip()
+    if doi != value or not DOI_PATTERN.fullmatch(doi):
+        raise ValueError(
+            "DOI must be a plain ASCII identifier such as 10.1234/example.record"
+        )
+    return {
+        "reserved_doi": doi,
+        "doi_url": f"https://doi.org/{doi}",
+        "doi_status": "reserved_unpublished",
+        "repository_record_type": "dataset",
+    }
+
+
+def _resolved_doi_metadata(
+    spec: Mapping[str, Any], doi: str | None
+) -> dict[str, str] | None:
+    configured = spec.get("doi")
+    if configured is not None and not isinstance(configured, str):
+        raise ValueError("archive specification DOI must be a string")
+    if doi is not None and configured is not None and doi != configured:
+        raise ValueError("command-line DOI disagrees with archive specification DOI")
+    selected = doi if doi is not None else configured
+    return None if selected is None else reserved_doi_metadata(selected)
 
 
 def _resolved_runs(
@@ -303,6 +349,7 @@ def validate_authoritative_inputs(
     allow_unknown_run_ids: bool = False,
 ) -> dict[str, Any]:
     root = Path(repository_root).resolve()
+    spec = resolve_source_spec(spec, root)
     runs = _resolved_runs(
         spec,
         run_overrides,
@@ -480,8 +527,33 @@ def _environment_metadata(spec: Mapping[str, Any], state: Mapping[str, Any]) -> 
     }
 
 
-def _readme(kind: str, spec: Mapping[str, Any]) -> str:
+def _doi_readme_block(kind: str, doi_metadata: Mapping[str, str] | None) -> str:
+    if doi_metadata is None:
+        return ""
+    relationship = (
+        "The core archive and audit supplement are components of this same dataset record."
+        if kind == "core"
+        else "This supplement accompanies and depends on the core reproduction archive under this same dataset record."
+    )
+    return f"""
+## Reserved DOI
+
+Reserved DOI: `{doi_metadata['reserved_doi']}`
+
+Canonical URL: {doi_metadata['doi_url']}
+
+The Zenodo dataset record is reserved and unpublished. {relationship}
+See `CITATION.md` for citation instructions.
+"""
+
+
+def _readme(
+    kind: str,
+    spec: Mapping[str, Any],
+    doi_metadata: Mapping[str, str] | None,
+) -> str:
     commit = spec["source"]["commit"]
+    doi_block = _doi_readme_block(kind, doi_metadata)
     if kind == "core":
         return f"""# One-dimensional reproduction archive
 
@@ -508,6 +580,7 @@ earlier diagnostic history.
 The approved relative space-time metric, solve-only online timing, localized
 sigmoid provenance, and historical limitations are preserved in `provenance/`.
 This archive does not claim exact historical reproduction.
+{doi_block}
 """
     return f"""# One-dimensional audit supplement
 
@@ -528,7 +601,63 @@ python scripts/1d/verify_reproduction_archive.py <audit-archive>
 
 The search records document regenerated sigmoid selections, not recovered
 historical manuscript parameters.
+{doi_block}
 """
+
+
+def _citation_instructions(
+    kind: str,
+    spec: Mapping[str, Any],
+    doi_metadata: Mapping[str, str],
+) -> str:
+    component = "core reproduction archive" if kind == "core" else "audit supplement"
+    dependency = (
+        ""
+        if kind == "core"
+        else "This supplement accompanies and depends on the core archive in the same record.\n\n"
+    )
+    return f"""# Citation instructions
+
+This {component} is part of a reserved, currently unpublished Zenodo dataset.
+
+- Reserved DOI: `{doi_metadata['reserved_doi']}`
+- Canonical DOI URL: {doi_metadata['doi_url']}
+- Record type: dataset
+- Source commit: `{spec['source']['commit']}`
+
+{dependency}Use the DOI to cite the dataset after the Zenodo draft has been published.
+Until publication, describe the DOI as reserved and unpublished. Software in
+the embedded Git bundle retains the repository software license.
+"""
+
+
+def _archive_provenance_summary(
+    kind: str,
+    spec: Mapping[str, Any],
+    doi_metadata: Mapping[str, str],
+) -> dict[str, Any]:
+    return {
+        "schema_version": "1.0.0",
+        "archive_kind": kind,
+        "source": dict(spec["source"]),
+        **dict(doi_metadata),
+        "archive_relationship": (
+            "core reproduction archive for the shared Zenodo dataset record"
+            if kind == "core"
+            else "audit supplement depending on the core archive in the shared Zenodo dataset record"
+        ),
+        "benchmark_variant": "legacy_sigmoid",
+        "initial_condition_provenance": "author_confirmed_localized_sigmoid_figure_generation_configuration",
+        "figure4_selection_provenance": "regenerated_sigmoid_search_not_recovered_historical_parameters",
+        "metric_provenance": "relative_space_time_l2_error_v1_author_approved_repository_definition",
+        "timing_provenance": "rom_solve_ivp_only_v1_author_approved_repository_definition",
+        "final_presentation_run_ids": {
+            "figures1_3": spec["runs"]["figures1_3_render"],
+            "figure4": spec["runs"]["figure4_render"],
+            "figure5": spec["runs"]["figure5_render"],
+        },
+        "exact_historical_reproduction_claimed": False,
+    }
 
 
 def _copy_payload(
@@ -677,6 +806,7 @@ def _write_controls(
     metadata: dict[str, dict[str, Any]],
     validation: Mapping[str, Any],
     archive_format: str,
+    doi_metadata: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     records = _inventory_records(archive_root, metadata)
     inventory = {
@@ -723,6 +853,8 @@ def _write_controls(
         },
         "archive_sha256_recorded_in_external_sidecar": True,
     }
+    if doi_metadata is not None:
+        archive_metadata.update(doi_metadata)
     metadata_path = archive_root / "archive_metadata.json"
     _write_json(metadata_path, archive_metadata)
     sums: list[str] = []
@@ -846,8 +978,11 @@ def plan_archives(
     output_directory: str | Path = "dist/1d",
     run_overrides: Mapping[str, str] | None = None,
     allow_unknown_run_ids: bool = False,
+    doi: str | None = None,
 ) -> dict[str, Any]:
     root = Path(repository_root).resolve()
+    spec = resolve_source_spec(spec, root)
+    doi_record = _resolved_doi_metadata(spec, doi)
     validation = validate_authoritative_inputs(
         spec,
         repository_root=root,
@@ -883,6 +1018,7 @@ def plan_archives(
         "writes_files": False,
         "launches_scientific_execution": False,
         "format": preferred_archive_format()[0],
+        "doi": doi_record,
         "source": validation["source"],
         "available_disk_bytes": available,
         "estimated_temporary_space_bytes": estimated_temporary,
@@ -912,6 +1048,7 @@ def _build_one(
     output_directory: Path,
     runs: Mapping[str, str],
     overwrite: bool,
+    doi_record: Mapping[str, str] | None,
 ) -> dict[str, Any]:
     archive_path = output_directory / _archive_name(kind, spec)
     sidecar = Path(str(archive_path) + ".sha256")
@@ -927,7 +1064,7 @@ def _build_one(
     try:
         metadata, rewrites = _copy_payload(entries, archive_root, repository_root)
         readme_path = archive_root / "README.md"
-        readme_path.write_text(_readme(kind, spec), encoding="utf-8")
+        readme_path.write_text(_readme(kind, spec, doi_record), encoding="utf-8")
         _add_generated_metadata(metadata, "README.md", "archive guide", "authoritative" if kind == "core" else "supplemental")
         manifests = archive_root / "manifests"
         manifests.mkdir(exist_ok=True)
@@ -946,6 +1083,29 @@ def _build_one(
             "portable path rewrite map",
             "authoritative" if kind == "core" else "supplemental",
         )
+        if doi_record is not None:
+            citation = archive_root / "CITATION.md"
+            citation.write_text(
+                _citation_instructions(kind, spec, doi_record), encoding="utf-8"
+            )
+            _add_generated_metadata(
+                metadata,
+                "CITATION.md",
+                "reserved DOI citation instructions",
+                "authoritative" if kind == "core" else "supplemental",
+            )
+            provenance = archive_root / "provenance/archive_provenance.json"
+            provenance.parent.mkdir(parents=True, exist_ok=True)
+            _write_json(
+                provenance,
+                _archive_provenance_summary(kind, spec, doi_record),
+            )
+            _add_generated_metadata(
+                metadata,
+                "provenance/archive_provenance.json",
+                "archive-level DOI and scientific provenance summary",
+                "authoritative" if kind == "core" else "supplemental",
+            )
         if kind == "core":
             source_dir = archive_root / "source"
             source_dir.mkdir(exist_ok=True)
@@ -986,6 +1146,7 @@ def _build_one(
             metadata=metadata,
             validation=validation,
             archive_format=preferred_archive_format()[1],
+            doi_metadata=doi_record,
         )
         create_deterministic_archive(archive_root, archive_path)
         archive_sha = sha256_file(archive_path)
@@ -1003,6 +1164,7 @@ def _build_one(
                 "inventory_checksum_sha256"
             ],
             "sidecar": str(sidecar),
+            "doi": dict(doi_record) if doi_record is not None else None,
         }
     finally:
         shutil.rmtree(staging)
@@ -1018,19 +1180,27 @@ def build_archives(
     overwrite: bool = False,
     run_overrides: Mapping[str, str] | None = None,
     allow_unknown_run_ids: bool = False,
+    doi: str | None = None,
 ) -> dict[str, Any]:
     if kind not in {"core", "audit", "both"}:
         raise ValueError("kind must be core, audit, or both")
+    root = Path(repository_root).resolve()
+    spec = resolve_source_spec(spec, root)
+    doi_record = _resolved_doi_metadata(spec, doi)
     plan = plan_archives(
         spec,
         repository_root=repository_root,
         output_directory=output_directory,
         run_overrides=run_overrides,
         allow_unknown_run_ids=allow_unknown_run_ids,
+        doi=doi,
     )
     if dry_run:
         return plan
-    root = Path(repository_root).resolve()
+    if not plan["source"]["tracked_worktree_clean"]:
+        raise ValueError(
+            "tracked source must be clean before creating committed-source archives"
+        )
     output = Path(output_directory)
     output.mkdir(parents=True, exist_ok=True)
     runs = _resolved_runs(
@@ -1067,11 +1237,13 @@ def build_archives(
                 output_directory=output,
                 runs=runs,
                 overwrite=overwrite,
+                doi_record=doi_record,
             )
         )
     return {
         "action": "built_reproduction_archives",
         "launches_scientific_execution": False,
+        "doi": doi_record,
         "archives": results,
     }
 
@@ -1088,6 +1260,36 @@ def _parse_sha256sums(path: Path) -> dict[str, str]:
             raise ValueError("duplicate SHA256SUMS path")
         result[match.group(2)] = match.group(1)
     return result
+
+
+def _verify_archive_doi_metadata(
+    archive_root: Path, metadata: Mapping[str, Any]
+) -> dict[str, str] | None:
+    fields = ("reserved_doi", "doi_url", "doi_status", "repository_record_type")
+    present = [field in metadata for field in fields]
+    if any(present) and not all(present):
+        raise ValueError("archive DOI metadata is incomplete")
+    if not any(present):
+        return None
+    expected = reserved_doi_metadata(str(metadata["reserved_doi"]))
+    if any(metadata.get(field) != value for field, value in expected.items()):
+        raise ValueError("archive DOI metadata is invalid or inconsistent")
+    citation_path = archive_root / "CITATION.md"
+    provenance_path = archive_root / "provenance/archive_provenance.json"
+    if not citation_path.is_file() or not provenance_path.is_file():
+        raise ValueError("DOI citation instructions or provenance summary are missing")
+    for path in (archive_root / "README.md", citation_path):
+        text = path.read_text(encoding="utf-8")
+        if expected["reserved_doi"] not in text or expected["doi_url"] not in text:
+            raise ValueError(f"DOI is missing from {path.relative_to(archive_root)}")
+    provenance = _load_json(provenance_path)
+    if any(provenance.get(field) != value for field, value in expected.items()):
+        raise ValueError("archive DOI provenance summary is inconsistent")
+    if provenance.get("source") != metadata.get("source"):
+        raise ValueError("archive DOI provenance source is inconsistent")
+    if provenance.get("archive_kind") != metadata.get("archive_kind"):
+        raise ValueError("archive DOI provenance kind is inconsistent")
+    return expected
 
 
 def verify_extracted_tree(root: str | Path) -> dict[str, Any]:
@@ -1142,6 +1344,7 @@ def verify_extracted_tree(root: str | Path) -> dict[str, Any]:
             "archive_sha256"
         ):
             raise ValueError(f"important scientific checksum failed: {name}")
+    doi_record = _verify_archive_doi_metadata(archive_root, metadata)
     all_files = {
         path.relative_to(archive_root).as_posix(): path.stat().st_size
         for path in archive_root.rglob("*")
@@ -1154,6 +1357,7 @@ def verify_extracted_tree(root: str | Path) -> dict[str, Any]:
         "uncompressed_content_size_bytes": sum(all_files.values()),
         "inventory_checksum_sha256": inventory_checksum,
         "important_scientific_files_verified": len(metadata.get("important_files", {})),
+        "doi": doi_record,
         "missing_files": [],
         "extra_files": [],
     }

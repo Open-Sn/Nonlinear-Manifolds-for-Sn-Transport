@@ -69,6 +69,13 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="accept explicitly supplied run IDs that differ from the specification",
     )
+    parser.add_argument(
+        "--doi",
+        help=(
+            "reserved unpublished dataset DOI to embed in README, citation, "
+            "provenance, and archive metadata"
+        ),
+    )
     return parser
 
 
@@ -85,6 +92,7 @@ def main(argv: list[str] | None = None) -> int:
             dry_run=arguments.dry_run,
             run_overrides=overrides,
             allow_unknown_run_ids=arguments.allow_unknown_run_id,
+            doi=arguments.doi,
         )
     except (OSError, ValueError, RuntimeError) as error:
         parser.exit(2, f"archive build failed: {error}\n")

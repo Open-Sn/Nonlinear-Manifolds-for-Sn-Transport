@@ -13,6 +13,7 @@ from one_d.reproduction_archive import (
     collect_archive_entries,
     create_synthetic_archive,
     is_safe_relative_path,
+    reserved_doi_metadata,
     sha256_file,
     verify_archive,
     verify_extracted_tree,
@@ -73,7 +74,12 @@ def _synthetic_repository(tmp_path):
             "short_commit": commit[:7],
             "branch": "archive-test",
         },
-        "runs": {"authoritative": "known-run"},
+        "runs": {
+            "authoritative": "known-run",
+            "figures1_3_render": "synthetic-figures1-3",
+            "figure4_render": "synthetic-figure4",
+            "figure5_render": "synthetic-figure5",
+        },
         "scientific_checksums": {},
         "important_files": [],
         "final_figure_checksums": {},
@@ -220,15 +226,23 @@ def test_missing_and_extra_files_are_detected(tmp_path):
 def test_dry_run_writes_nothing_overwrite_refusal_and_portable_text(tmp_path):
     repository, spec = _synthetic_repository(tmp_path)
     output = tmp_path / "archives"
+    doi = "10.5281/zenodo.21762243"
     plan = build_archives(
         spec,
         kind="audit",
         repository_root=repository,
         output_directory=output,
         dry_run=True,
+        doi=doi,
     )
     assert plan["writes_files"] is False
     assert plan["launches_scientific_execution"] is False
+    assert plan["doi"] == {
+        "reserved_doi": doi,
+        "doi_url": f"https://doi.org/{doi}",
+        "doi_status": "reserved_unpublished",
+        "repository_record_type": "dataset",
+    }
     assert not output.exists()
 
     built = build_archives(
@@ -236,6 +250,7 @@ def test_dry_run_writes_nothing_overwrite_refusal_and_portable_text(tmp_path):
         kind="audit",
         repository_root=repository,
         output_directory=output,
+        doi=doi,
     )
     archive = Path(built["archives"][0]["path"])
     assert archive.is_file()
@@ -245,16 +260,116 @@ def test_dry_run_writes_nothing_overwrite_refusal_and_portable_text(tmp_path):
             kind="audit",
             repository_root=repository,
             output_directory=output,
+            doi=doi,
         )
 
     extraction = tmp_path / "portable"
-    verify_archive(archive, extract_to=extraction)
+    verification = verify_archive(archive, extract_to=extraction)
+    assert verification["doi"] == plan["doi"]
+    archive_root = extraction / "1d_audit_supplement"
+    archive_metadata = json.loads(
+        (archive_root / "archive_metadata.json").read_text(encoding="utf-8")
+    )
+    provenance = json.loads(
+        (archive_root / "provenance/archive_provenance.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    for field, value in plan["doi"].items():
+        assert archive_metadata[field] == value
+        assert provenance[field] == value
+    assert doi in (archive_root / "README.md").read_text(encoding="utf-8")
+    assert "depends on the core reproduction archive" in (
+        archive_root / "README.md"
+    ).read_text(encoding="utf-8")
+    assert doi in (archive_root / "CITATION.md").read_text(encoding="utf-8")
     copied_text = (
         extraction
         / "1d_audit_supplement/payload/audit/machine-path.txt"
     ).read_text(encoding="utf-8")
     assert repository.as_posix() not in copied_text
     assert copied_text == "completed/audit/report.md\n"
+
+
+def test_doi_validation_source_head_resolution_and_clean_build_gate(tmp_path):
+    expected = {
+        "reserved_doi": "10.5281/zenodo.21762243",
+        "doi_url": "https://doi.org/10.5281/zenodo.21762243",
+        "doi_status": "reserved_unpublished",
+        "repository_record_type": "dataset",
+    }
+    assert reserved_doi_metadata(expected["reserved_doi"]) == expected
+    for invalid in (
+        "https://doi.org/10.5281/zenodo.21762243",
+        " 10.5281/zenodo.21762243",
+        "10.5281/zenodo 21762243",
+        "zenodo.21762243",
+    ):
+        with pytest.raises(ValueError, match="plain ASCII identifier"):
+            reserved_doi_metadata(invalid)
+
+    repository, spec = _synthetic_repository(tmp_path)
+    commit = _run_git(repository, "rev-parse", "HEAD")
+    spec["source"] = {
+        "commit": "HEAD",
+        "short_commit": "HEAD",
+        "branch": "archive-test",
+    }
+    plan = build_archives(
+        spec,
+        kind="audit",
+        repository_root=repository,
+        output_directory=tmp_path / "head-plan",
+        dry_run=True,
+        doi=expected["reserved_doi"],
+    )
+    assert plan["source"]["commit"] == commit
+    assert commit[:7] in plan["archives"]["audit"]["path"]
+
+    core_build = build_archives(
+        spec,
+        kind="core",
+        repository_root=repository,
+        output_directory=tmp_path / "core-doi",
+        doi=expected["reserved_doi"],
+    )
+    core_extract = tmp_path / "core-extract"
+    core_verification = verify_archive(
+        core_build["archives"][0]["path"], extract_to=core_extract
+    )
+    assert core_verification["doi"] == expected
+    core_root = core_extract / "1d_reproduction"
+    assert expected["reserved_doi"] in (core_root / "README.md").read_text(
+        encoding="utf-8"
+    )
+    assert expected["doi_url"] in (core_root / "CITATION.md").read_text(
+        encoding="utf-8"
+    )
+
+    spec["doi"] = "10.1234/different.record"
+    with pytest.raises(ValueError, match="disagrees"):
+        build_archives(
+            spec,
+            kind="audit",
+            repository_root=repository,
+            output_directory=tmp_path / "conflict",
+            dry_run=True,
+            doi=expected["reserved_doi"],
+        )
+
+    del spec["doi"]
+    (repository / "completed/core/tracked.json").write_text(
+        '{"value": 3}\n', encoding="utf-8"
+    )
+    with pytest.raises(ValueError, match="tracked source must be clean"):
+        build_archives(
+            spec,
+            kind="audit",
+            repository_root=repository,
+            output_directory=tmp_path / "dirty-build",
+            doi=expected["reserved_doi"],
+        )
+    assert not (tmp_path / "dirty-build").exists()
 
 
 def test_verifier_imports_no_solver_entry_points_and_launches_no_science(tmp_path):
@@ -283,3 +398,7 @@ def test_verifier_imports_no_solver_entry_points_and_launches_no_science(tmp_pat
 def test_independent_golden_content_checksum_is_unchanged():
     manifest = json.loads(GOLDEN_MANIFEST.read_text(encoding="utf-8"))
     assert manifest["content_checksum"]["sha256"] == EXPECTED_GOLDEN_CONTENT_SHA256
+    implementation = (
+        REPOSITORY_ROOT / "one_d/reproduction_archive.py"
+    ).read_text(encoding="utf-8")
+    assert "10.5281/zenodo.21762243" not in implementation

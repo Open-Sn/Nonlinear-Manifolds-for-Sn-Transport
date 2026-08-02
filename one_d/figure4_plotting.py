@@ -19,6 +19,12 @@ RESULT_LABEL = "regenerated_sigmoid_benchmark"
 SELECTION_PROVENANCE = "regenerated_sigmoid_search"
 METRIC_ID = "relative_space_time_l2_error_v1"
 TIMING_ID = "rom_solve_ivp_only_v1"
+OVERALL_TITLE = "Convergence and computational efficiency of low-rank models"
+PANEL_TITLES = {
+    "projected": "Projected streaming operator",
+    "inferred": "Inferred streaming operator",
+}
+SPEEDUP_TICKS = (50, 100, 200, 500, 1000, 2000)
 SERIES_LABELS = {
     "linear": "Linear",
     "elementwise": "Polynomial (elementwise)",
@@ -204,7 +210,7 @@ def figure4_plot_plan(
     }
 
 
-def _caption(metadata: dict[str, Any]) -> str:
+def _caption(metadata: dict[str, Any], render_run_id: str) -> str:
     return "\n".join(
         [
             "# Figure 4 caption",
@@ -216,11 +222,15 @@ def _caption(metadata: dict[str, Any]) -> str:
             "space-time $M$-norm. Speed-ups divide validated FOM integration time",
             "by wall-clock time inside the reduced `solve_ivp` call only.",
             "",
-            "This is the author-confirmed sigmoid benchmark. Nonlinear regularization",
+            "This is the author-confirmed regenerated sigmoid benchmark. Nonlinear",
+            "regularization",
             "parameters were selected by the Phase 8 regenerated search and are not",
             "recovered historical Figure 4 values.",
+            "This presentation-only rerender uses the unchanged validated bundle; no",
+            "curve values, metrics, timing values, or selected parameters were changed.",
             "",
             f"Bundle run: `{metadata['run_id']}`.",
+            f"Presentation render run: `{render_run_id}`.",
             "",
         ]
     )
@@ -277,8 +287,7 @@ def plot_figure4_bundle(
                 markersize=5,
                 **style,
             )
-        title = "Projected operators" if operators == "projected" else "Inferred operators"
-        error_axis.set_title(title)
+        error_axis.set_title(PANEL_TITLES[operators])
         error_axis.set_yscale("log")
         error_axis.set_xticks(n_r)
         error_axis.set_xlabel(r"Latent dimension $N_r$")
@@ -287,6 +296,11 @@ def plot_figure4_bundle(
         error_axis.legend(frameon=False)
 
         speed_axis.set_xticks(n_r)
+        speed_axis.set_yscale("log")
+        speed_axis.set_yticks(
+            SPEEDUP_TICKS,
+            labels=[str(value) for value in SPEEDUP_TICKS],
+        )
         speed_axis.set_xlabel(r"Latent dimension $N_r$")
         speed_axis.set_ylabel("Online speed-up")
         speed_axis.grid(True, which="both", alpha=0.25, linewidth=0.5)
@@ -296,7 +310,7 @@ def plot_figure4_bundle(
             "speedup_y_limits": list(speed_axis.get_ylim()),
             "n_r_limits": list(error_axis.get_xlim()),
         }
-    fig.suptitle("Regenerated sigmoid-benchmark rank study", fontsize=15)
+    fig.suptitle(OVERALL_TITLE, fontsize=15)
     png = output / "figure4_manuscript.png"
     pdf = output / "figure4_manuscript.pdf"
     fig.savefig(png, dpi=300, bbox_inches="tight")
@@ -304,11 +318,12 @@ def plot_figure4_bundle(
     plt.close(fig)
 
     caption = output / "figure4_caption.md"
-    caption.write_text(_caption(metadata), encoding="utf-8")
+    caption.write_text(_caption(metadata, output.name), encoding="utf-8")
     plot_metadata = {
         "schema_version": "1.0.0",
         "figure": "Figure 4",
         "layout": "manuscript_2_by_2",
+        "render_run_id": output.name,
         "source_bundle": {
             "path": str(bundle_directory),
             "metadata_sha256": _sha256(Path(bundle_directory) / "figure4_data.json"),
@@ -317,6 +332,7 @@ def plot_figure4_bundle(
         "case_set_status": metadata["case_set_status"],
         "complete_publication_reproduction": False,
         "result_label": RESULT_LABEL,
+        "benchmark_presentation_label": "regenerated sigmoid benchmark",
         "selection_provenance": SELECTION_PROVENANCE,
         "selected_parameter_checksum_sha256": metadata["selected_parameters"][
             "content_checksum_sha256"
@@ -327,14 +343,36 @@ def plot_figure4_bundle(
         "timing_definition": metadata["timing_definition"],
         "series_labels": SERIES_LABELS,
         "N_r_values": list(RANKS),
-        "axis_scales": {"N_r": "linear", "error": "logarithmic", "speedup": "linear"},
+        "titles": {
+            "overall": OVERALL_TITLE,
+            "panels": PANEL_TITLES,
+        },
+        "axis_scales": {
+            "N_r": "linear",
+            "error": "logarithmic",
+            "speedup": "logarithmic",
+        },
+        "axis_ticks": {"speedup": list(SPEEDUP_TICKS)},
         "plot_limits": plot_limits,
+        "rendering_provenance": {
+            "classification": "presentation_only_rerender",
+            "source_bundle_validated_and_unchanged": True,
+            "scientific_values_changed": False,
+            "description": (
+                "Presentation-only rerender from the unchanged validated Figure 4 bundle."
+            ),
+        },
         "plotting_source": _git_metadata(),
         "scientific_execution": {
             "solver_run": False,
+            "rom_run": False,
+            "inference_run": False,
+            "parameter_search_run": False,
             "fom_run": False,
             "derivatives_recomputed": False,
             "pod_svd_recomputed": False,
+            "bundle_reconstructed": False,
+            "metrics_recomputed": False,
             "figure5_rerun": False,
         },
         "outputs": {

@@ -437,6 +437,26 @@ def test_complete_and_partial_48_case_bundles_and_bundle_only_plotting(tmp_path)
     assert {path.suffix for path in outputs} == {".png", ".pdf", ".json", ".md"}
     plot_metadata = json.loads((tmp_path / "plot" / "plot_metadata.json").read_text())
     assert plot_metadata["scientific_execution"]["solver_run"] is False
+    assert plot_metadata["axis_scales"]["speedup"] == "logarithmic"
+    assert plot_metadata["axis_ticks"]["speedup"] == [50, 100, 200, 500, 1000, 2000]
+    assert plot_metadata["titles"] == {
+        "overall": "Convergence and computational efficiency of low-rank models",
+        "panels": {
+            "projected": "Projected streaming operator",
+            "inferred": "Inferred streaming operator",
+        },
+    }
+    assert plot_metadata["rendering_provenance"] == {
+        "classification": "presentation_only_rerender",
+        "source_bundle_validated_and_unchanged": True,
+        "scientific_values_changed": False,
+        "description": (
+            "Presentation-only rerender from the unchanged validated Figure 4 bundle."
+        ),
+    }
+    caption = (tmp_path / "plot" / "figure4_caption.md").read_text()
+    assert "regenerated sigmoid benchmark" in caption
+    assert "presentation-only rerender" in caption
     assert plot_metadata["selected_parameter_checksum_sha256"] == metadata[
         "selected_parameters"
     ]["content_checksum_sha256"]

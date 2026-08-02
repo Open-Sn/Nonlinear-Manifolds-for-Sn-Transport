@@ -301,6 +301,26 @@ def test_bundle_complete_partial_speedups_and_bundle_only_plot(tmp_path, monkeyp
     assert plot_metadata["layout"] == "manuscript_2_by_2"
     assert plot_metadata["projection_benchmark_in_speedup_panels"] is False
     assert plot_metadata["scientific_execution"]["solver_run"] is False
+    assert plot_metadata["axis_scales"]["speedup"] == "logarithmic"
+    assert plot_metadata["axis_ticks"]["speedup"] == [50, 100, 200, 300, 500]
+    assert plot_metadata["titles"] == {
+        "overall": "Effect of lifting dimension on accuracy and online efficiency",
+        "panels": {
+            "projected": "Projected streaming operator",
+            "inferred": "Inferred streaming operator",
+        },
+    }
+    assert plot_metadata["rendering_provenance"] == {
+        "classification": "presentation_only_rerender",
+        "source_bundle_validated_and_unchanged": True,
+        "scientific_values_changed": False,
+        "description": (
+            "Presentation-only rerender from the unchanged validated Figure 5 bundle."
+        ),
+    }
+    caption = (tmp_path / "plot" / "figure5_caption.md").read_text()
+    assert "regenerated sigmoid benchmark" in caption
+    assert "presentation-only rerender" in caption
 
     partial_root = tmp_path / "partial-results"
     omitted = figure5_cases()[-1].case_id

@@ -16,16 +16,19 @@ sigmoid
 
 in the final positive angular block. Its amplitude is one, its transition is
 at `x=0.1`, and its steepness is `100`. The manuscript states zero initial
-angular flux. The repository deliberately retains the sigmoid, likely to
-smooth startup and reduce the sharp incompatibility between zero flux and a
-suddenly imposed boundary inflow. This is a small, intentional implementation
-deviation—not a defect, a pending code fix, or an unresolved author question.
-No zero-initial-condition production configuration is maintained.
+angular flux, but the authors confirm that the one-dimensional Figure 1--3
+calculations used this sigmoid workflow. The repository therefore retains it
+as the authoritative numerical workflow for reproducing Figures 1--5. The
+text/configuration discrepancy is recorded transparently; it is not a defect,
+temporary workaround, pending code fix, or unresolved author question. No
+zero-initial-condition production configuration is maintained.
 
 Every resolved case and future result manifest records
-`"benchmark_variant": "legacy_sigmoid"` and the structured manuscript
-deviation. This catalog does not claim bit-for-bit or exact reproduction of
-the manuscript figures.
+`"benchmark_variant": "legacy_sigmoid"`. New result and plot metadata also
+record `"provenance_status":
+"author_confirmed_figure_generation_configuration"`; the canonical structured
+record is `initial_condition_provenance.json`. This does not imply bit-for-bit
+pixel reproduction of the manuscript figures.
 
 ## Encoded values and sources
 

@@ -19,6 +19,7 @@ import scipy
 
 from .config import OneDConfig
 from .publication_experiments import (
+    AUTHOR_CONFIRMED_SIGMOID_PROVENANCE,
     BENCHMARK_VARIANT,
     EXPECTED_DEVIATION,
     PublicationCase,
@@ -28,6 +29,7 @@ from .publication_experiments import (
 )
 from .publication_metrics import (
     publication_metric_definitions,
+    publication_metric_definitions_compatible,
     pod_energy_curves,
     validate_timing_metadata,
 )
@@ -234,6 +236,7 @@ def create_publication_run_directory(
         "base_configuration_checksum": case.base_configuration_checksum,
         "benchmark_variant": case.benchmark_variant,
         "manuscript_deviation": case.manuscript_deviation,
+        "initial_condition_provenance": AUTHOR_CONFIRMED_SIGMOID_PROVENANCE,
         "input_snapshot": {
             "path": str(input_snapshot),
             "filename": Path(input_snapshot).name,
@@ -504,8 +507,11 @@ def validate_publication_artifact(
         "count": config.time.output_count,
     }:
         raise ValueError("publication manifest output-time metadata is invalid")
-    if manifest.get("metric_definitions") != publication_metric_definitions():
+    if not publication_metric_definitions_compatible(manifest.get("metric_definitions")):
         raise ValueError("publication manifest metric definitions are invalid")
+    provenance = manifest.get("initial_condition_provenance")
+    if provenance is not None and provenance != AUTHOR_CONFIRMED_SIGMOID_PROVENANCE:
+        raise ValueError("publication manifest has invalid initial-condition provenance")
     solver = manifest.get("solver", {})
     if not isinstance(solver.get("status"), str) or not solver["status"]:
         raise ValueError("publication manifest solver status is invalid")
@@ -1142,6 +1148,7 @@ def build_figure_data_bundle(
         "figure": figure,
         "benchmark_variant": BENCHMARK_VARIANT,
         "manuscript_deviation": EXPECTED_DEVIATION,
+        "initial_condition_provenance": AUTHOR_CONFIRMED_SIGMOID_PROVENANCE,
         "catalog_checksum": catalog.checksum(),
         "case_ids": sorted(cases),
         "expected_case_ids": sorted(expected),
@@ -1151,8 +1158,8 @@ def build_figure_data_bundle(
         "case_set_complete": complete,
         "complete_publication_reproduction": False,
         "publication_reproduction_limitation": (
-            "The preserved localized-sigmoid initial condition differs from the "
-            "manuscript statement, and no original publication dataset checksum is available."
+            "No original figure-generating source commit, dependency environment, "
+            "or independently archived publication dataset checksum is available."
         ),
         "status": "complete_input_set" if complete else "partial_input_set",
         "sources": sources,
@@ -1209,6 +1216,7 @@ def plot_figure_data_bundle(
     caption = {
         "benchmark_variant": BENCHMARK_VARIANT,
         "manuscript_deviation": EXPECTED_DEVIATION,
+        "initial_condition_provenance": AUTHOR_CONFIRMED_SIGMOID_PROVENANCE,
         "complete_publication_reproduction": metadata["complete_publication_reproduction"],
         "note": "Generated only from validated result artifacts; no solver was run.",
     }

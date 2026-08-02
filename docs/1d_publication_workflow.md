@@ -15,16 +15,17 @@ The repository intentionally initializes the final positive angular block with
 ```
 
 using unit amplitude. The manuscript states zero initial angular flux. The
-sigmoid is retained as a deliberate repository policy, likely to smooth the
-beginning of the transient and reduce the sharp incompatibility between zero
-flux and a suddenly imposed boundary inflow. This is a small intentional
-deviation from the manuscript problem statement. It is not considered a
-defect or a pending code correction, and no zero-initial-condition production
-case is maintained.
+authors confirm that the numerical calculations used to generate its
+one-dimensional Figures 1--3 employed the localized sigmoid preserved here.
+The repository therefore retains this configuration as the authoritative
+numerical workflow for reproducing Figures 1--5. The manuscript-text
+discrepancy remains explicit, but it is not a defect, workaround, pending code
+correction, or unresolved question. No zero-initial-condition production case
+is maintained.
 
-Every catalog case, result manifest, figure-data bundle, and plot metadata must
-record both `benchmark_variant=legacy_sigmoid` and the structured initial-
-condition deviation.
+Every future result manifest, figure-data bundle, and plot metadata must record
+`benchmark_variant=legacy_sigmoid`, the structured manuscript-text discrepancy,
+and `provenance_status=author_confirmed_figure_generation_configuration`.
 
 ## Experiment status
 
@@ -166,17 +167,39 @@ python scripts/1d/plot_publication_figures.py \
   --plot
 ```
 
-Without `--build` or `--plot`, these commands report their planned actions and
-write nothing. They never invoke FOM or ROM execution. Partial input sets are
-marked `partial_input_set` and cannot be represented as complete publication
-reproduction. Plot titles and metadata identify the legacy sigmoid benchmark
-and carry the manuscript-deviation note.
+The retained positional form produces the earlier diagnostic layout. The
+bundle-only manuscript layout for Figures 1--3 uses an explicit figure and
+source bundle:
+
+```bash
+python scripts/1d/plot_publication_figures.py \
+  --figure 3 \
+  --source-bundle /path/to/validated-figure3-data \
+  --layout manuscript \
+  --output-dir /path/to/new/manuscript-figure3 \
+  --dry-run
+
+python scripts/1d/plot_publication_figures.py \
+  --figure 3 \
+  --source-bundle /path/to/validated-figure3-data \
+  --layout manuscript \
+  --output-dir /path/to/new/manuscript-figure3
+```
+
+Diagnostic mode writes only with `--plot`; manuscript `--dry-run` validates
+and reports without writing. Neither mode invokes FOM or ROM execution.
+Manuscript mode accepts only a complete matching Figure 1--3 bundle and
+refuses an existing output directory. Partial input sets are marked
+`partial_input_set` and cannot be represented as complete publication
+reproduction. Plot metadata identifies the legacy sigmoid benchmark, carries
+the manuscript-text discrepancy and author-confirmed figure-generation
+provenance, and records the physical phase-space mapping.
 
 ## Current limitations
 
-The production snapshot is not stored in this repository, the reorganized
-workflow has not numerically reproduced any publication result, nonlinear
-Figure 4 cases lack selected regularization provenance, and the Figure 4/5
-aggregate metric and timing boundaries remain incomplete. A future production run must preserve the
-Git, runtime, catalog, configuration, dataset checksum, benchmark-variant, and
-manuscript-deviation provenance captured by the artifact schema.
+The original figure-generating source commit and dependency environment are
+not known, nonlinear Figure 4 cases lack selected regularization provenance,
+and the Figure 4/5 aggregate metric and timing boundaries remain incomplete.
+A future production run must preserve the Git, runtime, catalog,
+configuration, dataset checksum, benchmark-variant, and manuscript-deviation
+provenance captured by the artifact schema.

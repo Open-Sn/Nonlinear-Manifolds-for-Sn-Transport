@@ -39,6 +39,26 @@ EXPECTED_DEVIATION = {
     }
 }
 
+AUTHOR_CONFIRMED_SIGMOID_PROVENANCE = {
+    "benchmark_variant": BENCHMARK_VARIANT,
+    "manuscript_text_initial_condition": "zero angular flux",
+    "author_confirmed_figure_initial_condition": (
+        "localized sigmoid in final positive angular block"
+    ),
+    "provenance_status": "author_confirmed_figure_generation_configuration",
+    "author_confirmation_scope": ["Figure 1", "Figure 2", "Figure 3"],
+    "repository_reproduction_scope": [
+        "Figure 1",
+        "Figure 2",
+        "Figure 3",
+        "Figure 4",
+        "Figure 5",
+    ],
+    "authoritative_configuration": LEGACY_CONFIG_RELATIVE_PATH,
+    "authoritative_configuration_checksum": LEGACY_CONFIG_CHECKSUM,
+    "initial_condition_formula": SIGMOID_FORMULA,
+}
+
 
 @dataclass(frozen=True)
 class PublicationCase:

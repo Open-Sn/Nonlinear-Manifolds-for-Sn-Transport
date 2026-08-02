@@ -22,12 +22,12 @@ CONVERGENCE_METRIC_REQUIREMENT = {
     "metric_id": "publication_time_aggregated_relative_error",
     "status": "requires_author_input",
     "missing": [
-        "numerator definition",
-        "denominator definition",
-        "whether the M-norm is squared before temporal aggregation",
-        "temporal quadrature rule and endpoint treatment",
-        "whether a final square root is applied",
-        "treatment of training and extrapolation intervals",
+        "pointwise numerator (M-norm or squared M-norm)",
+        "denominator field (transient FOM, centered transient, or steady state)",
+        "denominator power (M-norm or squared M-norm)",
+        "temporal quadrature rule and endpoint weights",
+        "final square-root convention",
+        "integration interval ([0,10], [0,7.5], (7.5,10], or another interval)",
     ],
     "prohibited_substitutions": [
         "arithmetic mean",
@@ -37,6 +37,15 @@ CONVERGENCE_METRIC_REQUIREMENT = {
         "mean of instantaneous relative errors",
     ],
 }
+
+LEGACY_CONVERGENCE_METRIC_MISSING_V1 = [
+    "numerator definition",
+    "denominator definition",
+    "whether the M-norm is squared before temporal aggregation",
+    "temporal quadrature rule and endpoint treatment",
+    "whether a final square root is applied",
+    "treatment of training and extrapolation intervals",
+]
 
 TIMING_REQUIREMENT = {
     "status": "requires_explicit_classification",
@@ -121,7 +130,12 @@ def pod_energy_curves(singular_values: np.ndarray) -> PodEnergyCurves:
 def publication_convergence_metric(*_args: Any, **_kwargs: Any) -> np.ndarray:
     """Refuse to invent the unresolved Figure 4/5 time-aggregated metric."""
     raise MetricDefinitionUnavailable(
-        "the publication time-aggregated convergence metric requires author input"
+        "the publication time-aggregated convergence metric requires author input; "
+        "repository provenance does not establish the pointwise numerator "
+        "(M-norm or squared M-norm), denominator field and power (transient FOM, "
+        "centered transient, or steady state; norm or squared norm), temporal "
+        "quadrature and endpoint weights, final square-root convention, or "
+        "integration interval ([0,10], [0,7.5], (7.5,10], or another interval)"
     )
 
 
@@ -155,4 +169,29 @@ def publication_metric_definitions() -> dict[str, Any]:
         "instantaneous_error_history": INSTANTANEOUS_ERROR_DEFINITION,
         "convergence_metric": CONVERGENCE_METRIC_REQUIREMENT,
         "timing": TIMING_REQUIREMENT,
+    }
+
+
+def publication_metric_definitions_compatible(recorded: Any) -> bool:
+    """Accept current metadata and the equivalent pre-Phase-6 wording."""
+    if not isinstance(recorded, dict):
+        return False
+    expected = publication_metric_definitions()
+    if recorded.get("instantaneous_error_history") != expected["instantaneous_error_history"]:
+        return False
+    if recorded.get("timing") != expected["timing"]:
+        return False
+    convergence = recorded.get("convergence_metric")
+    current = expected["convergence_metric"]
+    if not isinstance(convergence, dict):
+        return False
+    for key in ("metric_id", "status", "prohibited_substitutions"):
+        if convergence.get(key) != current[key]:
+            return False
+    missing = convergence.get("missing")
+    if not isinstance(missing, list):
+        return False
+    return tuple(missing) in {
+        tuple(current["missing"]),
+        tuple(LEGACY_CONVERGENCE_METRIC_MISSING_V1),
     }

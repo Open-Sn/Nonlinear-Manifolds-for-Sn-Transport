@@ -197,7 +197,8 @@ temporary directories.
 
 The current driver initializes only the final angular block with
 `1 - 1/(1 + exp(-100*(x-0.1)))`. Phase 3 makes that behavior explicit rather
-than silently replacing it. The paper states a zero initial condition; resolving
-the discrepancy requires a separate scientific decision and validation effort.
-Consequently, the legacy configuration is not yet asserted to be the exact
-publication configuration.
+than silently replacing it. The manuscript states a zero initial condition,
+but the authors confirm that the one-dimensional Figure 1--3 calculations used
+this sigmoid initialization. The legacy configuration is therefore the
+authoritative repository workflow for reproducing Figures 1--5, while the
+manuscript-text discrepancy remains documented explicitly.

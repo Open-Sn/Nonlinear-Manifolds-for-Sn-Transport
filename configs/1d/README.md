@@ -6,9 +6,11 @@ not a claim that the repository currently reproduces the publication figures.
 
 In particular, it explicitly preserves the localized sigmoid initial condition
 in the final angular block, with unit amplitude, transition at `x=0.1`, and
-steepness `100`. The paper states a zero initial condition. Resolving that
-scientific discrepancy is outside Phase 3, so no alternative paper-zero
-production configuration is supplied here.
+steepness `100`. The manuscript states a zero initial condition, but the
+authors confirm that its one-dimensional Figure 1--3 calculations used this
+preserved sigmoid workflow. It is therefore the authoritative repository
+configuration for reproducing Figures 1--5; no alternative paper-zero
+production configuration is supplied.
 
 The physical inflow selection is named `most_normal`: for the ascending GL4
 ordinates this is the final positive ordinate. The historical root helper calls

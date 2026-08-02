@@ -1,10 +1,12 @@
 # Open scientific and provenance questions
 
-The repository intentionally uses its localized sigmoid initial condition for
-all production and publication-oriented 1-D experiments. Although the paper
-states zero initial angular flux, retaining the sigmoid is an explicit
-repository policy rather than an unresolved author question or pending code
-fix. The remaining scientific and publication-provenance questions are:
+The manuscript states zero initial angular flux, but the authors confirm that
+the numerical calculations used for its one-dimensional Figures 1--3 employed
+the localized sigmoid in the final positive angular block. The authoritative
+configuration is `configs/1d/legacy_production.json`; the repository retains
+it as the reproduction workflow for Figures 1--5. This transparent text/code
+discrepancy is resolved provenance, not an open question or pending code fix.
+The remaining scientific and publication-provenance questions are:
 
 1. The paper uses $N_r=16$, $N_q=548$ for an illustrative case and
    $N_r+N_q=564$ for a convergence study. The current executable defaults

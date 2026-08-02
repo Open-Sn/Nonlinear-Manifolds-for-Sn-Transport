@@ -442,26 +442,27 @@
       },
       "required_input_snapshot": "solutionDG1_A4_T10_Nt10001_Nx750_continuous_bis.npy",
       "requested_outputs": [
-        "time-aggregated relative convergence metric",
-        "online runtime",
-        "online speed-up",
+        "relative_space_time_l2_error_v1",
+        "rom_solve_ivp_only_v1 runtime",
+        "validated-FOM-integration online speed-up",
         "projection benchmark",
         "model dimensions",
         "ODE function-evaluation counts",
         "complete provenance"
       ],
       "expected_artifact_names": ["data/convergence_data.npz", "metrics.json", "diagnostics.json"],
-      "specification_status": "requires_author_input",
-      "missing_information": [
-        "exact time-aggregated convergence metric definition",
-        "publication-comparable online timing stage classification"
-      ],
-      "execution_allowed": false,
+      "specification_status": "fully_specified",
+      "missing_information": [],
+      "execution_allowed": true,
       "reported_manuscript_metadata": {"figure": 5, "fixed_N_r": 32},
       "notes": ["Projected cases do not use lambda_L or lambda_Q."],
       "provenance": {
         "parameter_source": "Figure 5 values supplied for Phase 4",
-        "benchmark_source": "configs/1d/legacy_production.json"
+        "benchmark_source": "configs/1d/legacy_production.json",
+        "metric_id": "relative_space_time_l2_error_v1",
+        "metric_provenance": "author_approved_repository_definition",
+        "online_timing_id": "rom_solve_ivp_only_v1",
+        "timing_provenance": "author_approved_repository_definition"
       }
     },
     {
@@ -502,26 +503,27 @@
       },
       "required_input_snapshot": "solutionDG1_A4_T10_Nt10001_Nx750_continuous_bis.npy",
       "requested_outputs": [
-        "time-aggregated relative convergence metric",
-        "online runtime",
-        "online speed-up",
+        "relative_space_time_l2_error_v1",
+        "rom_solve_ivp_only_v1 runtime",
+        "validated-FOM-integration online speed-up",
         "projection benchmark",
         "model dimensions",
         "ODE function-evaluation counts",
         "complete provenance"
       ],
       "expected_artifact_names": ["data/convergence_data.npz", "metrics.json", "diagnostics.json"],
-      "specification_status": "requires_author_input",
-      "missing_information": [
-        "exact time-aggregated convergence metric definition",
-        "publication-comparable online timing stage classification"
-      ],
-      "execution_allowed": false,
+      "specification_status": "fully_specified",
+      "missing_information": [],
+      "execution_allowed": true,
       "reported_manuscript_metadata": {"figure": 5, "fixed_N_r": 32},
       "notes": ["Inference regularization is attached only to inferred model series."],
       "provenance": {
         "parameter_source": "Figure 5 values supplied for Phase 4",
-        "benchmark_source": "configs/1d/legacy_production.json"
+        "benchmark_source": "configs/1d/legacy_production.json",
+        "metric_id": "relative_space_time_l2_error_v1",
+        "metric_provenance": "author_approved_repository_definition",
+        "online_timing_id": "rom_solve_ivp_only_v1",
+        "timing_provenance": "author_approved_repository_definition"
       }
     }
   ],
@@ -547,9 +549,9 @@
     "training_interval": [0.0, 7.5],
     "required_input_snapshot": "solutionDG1_A4_T10_Nt10001_Nx750_continuous_bis.npy",
     "requested_outputs": [
-      "time-aggregated relative convergence metric",
-      "online runtime",
-      "online speed-up",
+      "relative_space_time_l2_error_v1",
+      "rom_solve_ivp_only_v1 runtime",
+      "validated-FOM-integration online speed-up",
       "model dimensions",
       "ODE function-evaluation counts",
       "complete provenance"
@@ -564,11 +566,15 @@
     },
     "notes": [
       "Candidate ranges are recorded, but no best values are selected by this catalog.",
-      "Execution is refused until selected values and the convergence metric are author supplied."
+      "Linear cases are executable; nonlinear cases remain refused until selected values are author supplied."
     ],
     "provenance": {
       "parameter_source": "Figure 4 values and limitations supplied for Phase 4",
-      "benchmark_source": "configs/1d/legacy_production.json"
+      "benchmark_source": "configs/1d/legacy_production.json",
+      "metric_id": "relative_space_time_l2_error_v1",
+      "metric_provenance": "author_approved_repository_definition",
+      "online_timing_id": "rom_solve_ivp_only_v1",
+      "timing_provenance": "author_approved_repository_definition"
     }
   }
 }

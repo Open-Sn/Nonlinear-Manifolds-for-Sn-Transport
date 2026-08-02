@@ -15,7 +15,6 @@ from one_d.publication_experiments import (
     resolve_base_configuration,
 )
 from one_d.publication_metrics import (
-    MetricDefinitionUnavailable,
     instantaneous_error_history,
     pod_energy_curves,
     publication_convergence_metric,
@@ -35,10 +34,10 @@ def test_catalog_is_deterministic_and_has_pinned_checksum(catalog):
     reconstructed = load_publication_catalog(CATALOG_PATH)
     assert catalog.canonical_json() == reconstructed.canonical_json()
     assert catalog.checksum() == reconstructed.checksum()
-    assert catalog.checksum() == "c21db43a79d8343581862479289ed62780db9e74ff2b30f0129bf04204473c92"
+    assert catalog.checksum() == "59788662d7f3a40b8366f0c91f6ff757ae41f6357eca16f6e7e54b419d0127ed"
     assert len(catalog.cases) == 57
-    assert sum(case.fully_specified for case in catalog.cases) == 7
-    assert sum(case.specification_status == "partially_specified" for case in catalog.cases) == 16
+    assert sum(case.fully_specified for case in catalog.cases) == 25
+    assert sum(case.specification_status == "partially_specified" for case in catalog.cases) == 0
 
 
 def test_every_publication_case_resolves_to_exact_legacy_sigmoid(catalog):
@@ -123,7 +122,7 @@ def test_figure3_inference_values_and_iteration_metadata(catalog):
     assert tensorial.reported_manuscript_metadata["iteration_count_role"] == "manuscript_metadata_only"
 
 
-def test_figure4_expansion_constraint_and_refusal(catalog):
+def test_figure4_expansion_constraint_and_readiness(catalog):
     cases = [case for case in catalog.cases if case.figure == "Figure 4"]
     ranks = {8, 16, 24, 32, 40, 48, 56, 64}
     expected_combinations = {
@@ -151,12 +150,9 @@ def test_figure4_expansion_constraint_and_refusal(catalog):
         assert case.lambda_Q is None
         assert case.inference_tolerance is None
         assert case.maximum_iterations is None
-        assert case.specification_status == "partially_specified"
-        assert not case.execution_allowed
-        assert case.missing_information == (
-            "exact time-aggregated convergence metric definition",
-            "publication-comparable online timing stage classification",
-        )
+        assert case.specification_status == "fully_specified"
+        assert case.execution_allowed
+        assert case.missing_information == ()
         assert not any("gamma" in item or "lambda_Q" in item for item in case.missing_information)
         assert case.parameter_sweep["model_dimension_constraint"] == "linear model dimension = N_r"
         assert case.parameter_sweep["nonlinear_total_dimension_constraint_applicable"] is False
@@ -186,7 +182,7 @@ def test_figure4_expansion_constraint_and_refusal(catalog):
     assert selected.parameter_sweep["lambda_Q_candidate_range"] == [6e-9, 2e-4]
 
 
-def test_figure5_series_dimensions_regularization_and_refusal(catalog):
+def test_figure5_series_dimensions_regularization_and_readiness(catalog):
     projected = catalog.get("fig5_projected_nq_sweep")
     inferred = catalog.get("fig5_inferred_nq_sweep")
     expected_nq = [1, 2, 4, 8, 16, 32, 64, 128]
@@ -200,9 +196,11 @@ def test_figure5_series_dimensions_regularization_and_refusal(catalog):
             "enlarged_linear",
             "M_orthogonal_best_projection",
         }
-        assert case.specification_status == "requires_author_input"
-        assert not case.execution_allowed
-        assert any("convergence metric" in item for item in case.missing_information)
+        assert case.specification_status == "fully_specified"
+        assert case.execution_allowed
+        assert case.missing_information == ()
+        assert case.provenance["metric_id"] == "relative_space_time_l2_error_v1"
+        assert case.provenance["online_timing_id"] == "rom_solve_ivp_only_v1"
     projected_series = projected.parameter_sweep["series"]
     assert projected_series["elementwise_quadratic"]["lifting_regularization_gamma"] == 8e-7
     assert projected_series["tensorial_quadratic"]["lifting_regularization_gamma"] == 2.5e-8
@@ -232,9 +230,14 @@ def test_instantaneous_metric_preserves_exact_mass_convention():
     )
 
 
-def test_unresolved_convergence_metric_is_refused_and_pod_energy_is_defined():
-    with pytest.raises(MetricDefinitionUnavailable, match="requires author input"):
-        publication_convergence_metric(np.ones(3))
+def test_approved_convergence_metric_and_pod_energy_are_defined():
+    time = np.array([0.0, 5.0, 10.0])
+    fom = np.ones((2, 3))
+    rom = np.zeros((2, 3))
+    np.testing.assert_allclose(
+        publication_convergence_metric(fom, rom, np.eye(2), time),
+        1.0,
+    )
     curves = pod_energy_curves(np.array([3.0, 1.0]))
     np.testing.assert_allclose(curves.eigenvalues, [9.0, 1.0])
     np.testing.assert_allclose(curves.retained_energy_fraction, [0.9, 1.0])

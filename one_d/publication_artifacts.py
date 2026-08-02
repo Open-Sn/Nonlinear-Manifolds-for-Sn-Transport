@@ -22,6 +22,7 @@ from .publication_experiments import (
     AUTHOR_CONFIRMED_SIGMOID_PROVENANCE,
     BENCHMARK_VARIANT,
     EXPECTED_DEVIATION,
+    KNOWN_HISTORICAL_CATALOG_CHECKSUMS,
     PublicationCase,
     PublicationCatalog,
     resolve_base_configuration,
@@ -447,7 +448,6 @@ def validate_publication_artifact(
     config = OneDConfig.from_dict(_read_json(root / "config.json"))
     expected = {
         "case_id": case.case_id,
-        "experiment_catalog_checksum": catalog.checksum(),
         "base_configuration_path": case.base_configuration_path,
         "base_configuration_checksum": case.base_configuration_checksum,
         "benchmark_variant": BENCHMARK_VARIANT,
@@ -456,6 +456,12 @@ def validate_publication_artifact(
     for key, value in expected.items():
         if manifest.get(key) != value:
             raise ValueError(f"publication manifest has invalid {key}")
+    recorded_catalog = manifest.get("experiment_catalog_checksum")
+    if recorded_catalog not in {
+        catalog.checksum(),
+        *KNOWN_HISTORICAL_CATALOG_CHECKSUMS,
+    }:
+        raise ValueError("publication manifest has an unknown catalog checksum")
     if config.checksum() != case.base_configuration_checksum:
         resolved = resolve_case_configuration(case)
         if config.canonical_json() != resolved.canonical_json():

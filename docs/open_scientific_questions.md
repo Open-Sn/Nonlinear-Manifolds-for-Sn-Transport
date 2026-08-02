@@ -12,20 +12,18 @@ The remaining scientific and publication-provenance questions are:
    $N_r+N_q=564$ for a convergence study. The current executable defaults
    differ; publication cases now record the paper-oriented dimensions without
    changing the historical defaults.
-2. The exact production snapshot used for the paper has not yet been
-   identified in this repository.
-3. The source commit and dependency environment associated with the
+2. The source commit and dependency environment associated with the
    published figures have not yet been established.
-4. The current error routine computes an instantaneous mass-norm error
-   normalized by the steady-state norm. The paper's convergence figures also
-   require a relative time-integrated error whose exact definition needs
-   author input.
-5. The current algebraic mass norm does not add angular quadrature weights.
+3. The current algebraic mass norm does not add angular quadrature weights.
    This convention is preserved in Phase 1 and should be reviewed separately.
-6. Figure 4 exact selected regularization values and their selection
+4. Figure 4 exact selected nonlinear regularization values and their selection
    provenance are not available for every case.
-7. Publication timing and speed-up measurements require a documented
-   definition of which offline costs are excluded.
+
+The aggregate Figure 4/5 metric and Figure 5 online timing boundary are no
+longer open questions. An author approved explicit repository definitions for
+sigmoid-benchmark regeneration. Those decisions are documented in
+`docs/1d_figure4_5_provenance.md` and are not presented as historical-source
+recovery.
 
 These items are not resolved by the software-verification tests. They remain
 preserved pending provenance review and require author confirmation.

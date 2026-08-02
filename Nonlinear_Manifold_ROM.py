@@ -247,6 +247,7 @@ class NonlinearManifoldReducedModel:
         self.initial_condition = None
         self.last_integration_result = None
         self.last_integration_diagnostics = None
+        self.last_solve_ivp_elapsed_seconds = None
 
 
     # ======================================================================
@@ -701,7 +702,13 @@ class NonlinearManifoldReducedModel:
 
         # Integrate the reduced-order model over the full time interval using a stiff ODE solver:
         ivp_kw = dict(t_span=(initial_time, self.TT), method=method, atol=atol, rtol=rtol, t_eval=self.time_steps)
-        ivp_result = sp.integrate.solve_ivp(fun=ff, y0=self.initial_condition, **ivp_kw)
+        solve_ivp_started = time.perf_counter()
+        ivp_result = sp.integrate.solve_ivp(
+            fun=ff,
+            y0=self.initial_condition,
+            **ivp_kw,
+        )
+        self.last_solve_ivp_elapsed_seconds = time.perf_counter() - solve_ivp_started
         self.last_integration_result = ivp_result
         self.last_integration_diagnostics = reduced_integration_diagnostics(
             ivp_result, self.TT

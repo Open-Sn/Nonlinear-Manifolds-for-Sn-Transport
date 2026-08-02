@@ -36,8 +36,8 @@ The catalog resolves to 57 cases in total.
 | 1 | 1 POD study | Legacy sigmoid | Fully specified | Production snapshot | Ready once compatible snapshot exists |
 | 2 | 3 projected ROMs | Legacy sigmoid | Fully specified | Production snapshot | Ready once compatible snapshot exists |
 | 3 | 3 inferred ROMs | Legacy sigmoid | Fully specified | Production snapshot | Ready once compatible snapshot exists |
-| 4 | 48 cases: 3 models × 2 operator types × 8 ranks | Legacy sigmoid | 16 linear partially specified; 32 nonlinear require author input | Linear: aggregate metric and timing; nonlinear: also selected gamma and inferred lambda_Q | Refused |
-| 5 | 2 projected/inferred comparison studies | Legacy sigmoid | Requires author input | Aggregate metric and publication-comparable timing boundaries | Refused |
+| 4 | 48 cases: 3 models × 2 operator types × 8 ranks | Legacy sigmoid | 16 linear fully specified; 32 nonlinear require author input | Nonlinear only: selected gamma and inferred lambda_Q | Linear ready; nonlinear refused |
+| 5 | 2 projected/inferred comparison studies | Legacy sigmoid | Fully specified | None | Ready |
 
 The catalog deterministically expands Figure 4 over linear, elementwise, and
 tensorial models, projected and inferred operators, and all eight reported
@@ -48,11 +48,10 @@ inferred cases carry only `lambda_L=0`; they do not use nonlinear lifting,
 quadratic inference, nonlinear convergence tolerance, or alternating-
 minimization iteration limits.
 
-The linear dynamical models are fully parameterized but have status
-`partially_specified` because the publication aggregate metric and timing
-classification remain unresolved. Nonlinear Figure 4 cases additionally lack
-selected per-case regularization. The reported regularization ranges are
-search ranges, not selected values. The schema at
+The linear dynamical models and the author-approved aggregate metric/timing
+definitions are complete. Nonlinear Figure 4 cases still lack selected
+per-case regularization. The reported regularization ranges are search ranges,
+not selected values. The schema at
 `configs/1d/publication/figure4_selected_parameters.schema.json` describes
 future author-approved selections without supplying placeholders that could be
 mistaken for results.
@@ -94,8 +93,22 @@ python scripts/1d/run_publication_case.py fig3_tensorial_inferred \
   --execute
 ```
 
-Figure 4 and Figure 5 remain conservatively refused even with a snapshot
-because their publication-comparable definitions are incomplete.
+Individual nonlinear Figure 4 cases remain conservatively refused. Figure 5
+uses a separate resumable execution plan and shared-offline assets:
+
+```bash
+python scripts/1d/run_phase7_figure5.py \
+  --run-id <new-run-id> \
+  --snapshot <production-snapshot.npy> \
+  --fom-manifest <validated-fom-manifest.json> \
+  --shared-offline <shared-offline-directory> \
+  --dry-run
+```
+
+Add `--execute` only after reviewing that plan. Successful per-case directories
+are reused on resume; failed cases retain diagnostics, and interrupted cases
+remain pending. The command never runs the FOM, recomputes derivatives, or
+recomputes the POD/SVD.
 
 ## Metrics
 
@@ -109,17 +122,23 @@ d(t) = psi_FOM(t) - psi_ROM(t)
 It preserves the repository's mass convention and does not add angular
 quadrature weights.
 
-The Figure 4/5 time-aggregated relative convergence metric is intentionally not
-implemented. Its numerator, denominator, squared-norm convention, temporal
-quadrature, endpoint treatment, final square-root convention, and handling of
-training versus extrapolation intervals require author input. The workflow
-will not silently substitute a mean, RMS, trapezoidal or rectangle integral,
-or mean instantaneous relative error.
+Figures 4 and 5 use the author-approved repository metric
 
-Timing metadata separates online, offline, and total runtime and records the
-speed-up basis plus included and excluded stages. The paper describes online
-speed-up as excluding offline costs, but repository provenance does not yet
-establish the exact boundaries used for every reported timing.
+```text
+sqrt(trapezoid((FOM-ROM)^T M (FOM-ROM), time)
+     / trapezoid(FOM^T M FOM, time))
+```
+
+over the complete `[0,10]` interval, including both endpoints. Its denominator
+is the uncentered transient FOM and the established mass convention is retained
+without angular weights. This definition was adopted for regeneration; it was
+not recovered from historical executable source.
+
+Figure 5 online time is wall-clock time inside the reduced `solve_ivp` call
+only. Speed-up divides the exact validated FOM-manifest integration time by
+that online value. Every excluded setup, inference, reconstruction, metric,
+and artifact stage is timed separately. One run, no warm-up, and no repeated
+average are required; the resulting speed-ups are machine-specific.
 
 ## Result artifacts and provenance
 
@@ -195,11 +214,34 @@ reproduction. Plot metadata identifies the legacy sigmoid benchmark, carries
 the manuscript-text discrepancy and author-confirmed figure-generation
 provenance, and records the physical phase-space mapping.
 
+Figure 5 has dedicated bundle-only commands:
+
+```bash
+python scripts/1d/build_figure5_bundle.py \
+  --run-id <run-id> \
+  --output-dir <new-bundle-directory> \
+  --build
+
+python scripts/1d/plot_figure5.py \
+  --source-bundle <new-bundle-directory> \
+  --output-dir <new-plot-directory> \
+  --dry-run
+
+python scripts/1d/plot_figure5.py \
+  --source-bundle <new-bundle-directory> \
+  --output-dir <new-plot-directory>
+```
+
+The plot command validates and reads the compact bundle only; it cannot launch
+a scientific solve. It writes a 2-by-2 PNG/PDF composite, metadata JSON, and a
+caption Markdown file, and refuses to overwrite an existing directory.
+
 ## Current limitations
 
 The original figure-generating source commit and dependency environment are
-not known, nonlinear Figure 4 cases lack selected regularization provenance,
-and the Figure 4/5 aggregate metric and timing boundaries remain incomplete.
-A future production run must preserve the Git, runtime, catalog,
+not known, and nonlinear Figure 4 cases lack selected regularization
+provenance. The approved aggregate metric and timing boundaries are explicit
+repository regeneration definitions, not recovered historical provenance. A
+future production run must preserve the Git, runtime, catalog,
 configuration, dataset checksum, benchmark-variant, and manuscript-deviation
 provenance captured by the artifact schema.

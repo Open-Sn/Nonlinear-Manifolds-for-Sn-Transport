@@ -2,11 +2,9 @@ import hashlib
 import json
 from pathlib import Path
 
-import pytest
-
 from one_d.publication_metrics import (
-    MetricDefinitionUnavailable,
-    publication_convergence_metric,
+    ONLINE_TIMING_DEFINITION,
+    RELATIVE_SPACE_TIME_L2_ERROR_DEFINITION,
 )
 
 
@@ -85,15 +83,24 @@ def test_figure4_evidence_is_complete_deterministic_and_non_executable():
             }
 
 
-def test_unavailable_metric_message_enumerates_every_author_decision():
-    with pytest.raises(MetricDefinitionUnavailable) as caught:
-        publication_convergence_metric()
-    message = str(caught.value)
-    for decision in (
-        "pointwise numerator",
-        "denominator field and power",
-        "temporal quadrature and endpoint weights",
-        "final square-root convention",
-        "integration interval",
-    ):
-        assert decision in message
+def test_approved_metric_and_timing_policies_are_exact():
+    assert RELATIVE_SPACE_TIME_L2_ERROR_DEFINITION["metric_id"] == (
+        "relative_space_time_l2_error_v1"
+    )
+    assert RELATIVE_SPACE_TIME_L2_ERROR_DEFINITION["reference_field"] == (
+        "uncentered_transient_fom"
+    )
+    assert RELATIVE_SPACE_TIME_L2_ERROR_DEFINITION["temporal_quadrature"] == (
+        "trapezoidal"
+    )
+    assert RELATIVE_SPACE_TIME_L2_ERROR_DEFINITION["endpoint_policy"] == (
+        "both_endpoints_included"
+    )
+    assert RELATIVE_SPACE_TIME_L2_ERROR_DEFINITION["time_interval"] == [0.0, 10.0]
+    assert RELATIVE_SPACE_TIME_L2_ERROR_DEFINITION["final_square_root"] is True
+    assert ONLINE_TIMING_DEFINITION["online_timing_id"] == "rom_solve_ivp_only_v1"
+    assert ONLINE_TIMING_DEFINITION["online_boundary"] == (
+        "wall_clock_inside_reduced_solve_ivp_call_only"
+    )
+    assert ONLINE_TIMING_DEFINITION["measurement_policy"]["warmup_runs"] == 0
+    assert ONLINE_TIMING_DEFINITION["measurement_policy"]["measured_runs_per_case"] == 1

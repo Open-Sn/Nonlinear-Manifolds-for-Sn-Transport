@@ -19,6 +19,9 @@ DEFAULT_CATALOG_PATH = REPOSITORY_ROOT / "configs" / "1d" / "publication" / "exp
 LEGACY_CONFIG_RELATIVE_PATH = "configs/1d/legacy_production.json"
 LEGACY_CONFIG_CHECKSUM = "cc442174134332f4b722cfa65ef179e1abc350c3e27e342a8bfeb184aa1b2759"
 GOLDEN_CONTENT_CHECKSUM = "91c84e813e5cbfabd0bf0c5be436afc19e64152b7f06c9f1a572a76038108238"
+KNOWN_HISTORICAL_CATALOG_CHECKSUMS = {
+    "c21db43a79d8343581862479289ed62780db9e74ff2b30f0129bf04204473c92",
+}
 BENCHMARK_VARIANT = "legacy_sigmoid"
 SIGMOID_FORMULA = "1 - 1 / (1 + exp(-100 * (x - 0.1)))"
 CANONICAL_SNAPSHOT_FILENAME = "solutionDG1_A4_T10_Nt10001_Nx750_continuous_bis.npy"
@@ -335,18 +338,13 @@ def _expand_figure4_family(raw: dict[str, Any]) -> Iterable[PublicationCase]:
             for latent in dimensions:
                 latent = int(latent)
                 linear = model == "linear"
-                missing = [
-                    "exact time-aggregated convergence metric definition",
-                    "publication-comparable online timing stage classification",
-                ]
+                missing: list[str] = []
                 if not linear:
-                    missing.insert(
-                        0,
+                    missing.append(
                         f"author-selected gamma for {model}/{operators}/N_r={latent}",
                     )
                 if not linear and operators == "inferred":
-                    missing.insert(
-                        1,
+                    missing.append(
                         f"author-selected lambda_Q for {model}/{operators}/N_r={latent}",
                     )
                 if linear:
@@ -362,7 +360,7 @@ def _expand_figure4_family(raw: dict[str, Any]) -> Iterable[PublicationCase]:
                     }
                     notes = [
                         "The linear dynamical model is fully parameterized.",
-                        "Execution remains conservatively refused until the aggregate metric and timing classification are supplied.",
+                        "The author-approved aggregate metric and online timing policy apply.",
                     ]
                 else:
                     parameter_sweep = {
@@ -406,10 +404,10 @@ def _expand_figure4_family(raw: dict[str, Any]) -> Iterable[PublicationCase]:
                     "requested_outputs": raw["requested_outputs"],
                     "expected_artifact_names": raw["expected_artifact_names"],
                     "specification_status": (
-                        "partially_specified" if linear else "requires_author_input"
+                        "fully_specified" if linear else "requires_author_input"
                     ),
                     "missing_information": missing,
-                    "execution_allowed": False,
+                    "execution_allowed": linear,
                     "reported_manuscript_metadata": reported_metadata,
                     "notes": notes,
                     "provenance": raw["provenance"],

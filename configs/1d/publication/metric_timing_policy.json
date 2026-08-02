@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0.0",
+  "benchmark_variant": "legacy_sigmoid",
+  "metric": {
+    "metric_id": "relative_space_time_l2_error_v1",
+    "metric_provenance": "author_approved_repository_definition",
+    "temporal_quadrature": "trapezoidal",
+    "endpoint_policy": "both_endpoints_included",
+    "time_interval": [0.0, 10.0],
+    "integrand_power": "squared_M_norm",
+    "final_square_root": true,
+    "reference_field": "uncentered_transient_fom",
+    "mass_convention": "spatial_DG_mass_repeated_by_angle_without_angular_weights",
+    "historical_source_status": "not_recovered_from_historical_executable_source"
+  },
+  "timing": {
+    "online_timing_id": "rom_solve_ivp_only_v1",
+    "timing_provenance": "author_approved_repository_definition",
+    "online_boundary": "wall_clock_inside_reduced_solve_ivp_call_only",
+    "speedup_numerator": "validated_production_fom_integration_elapsed",
+    "speedup_denominator": "rom_online_integration_elapsed",
+    "measured_runs_per_case": 1,
+    "warmup_runs": 0,
+    "repeated_run_average": false,
+    "machine_specific": true,
+    "scientific_golden_value": false
+  }
+}

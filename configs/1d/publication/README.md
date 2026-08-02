@@ -50,7 +50,7 @@ The resolved catalog contains 57 cases: 1 for Figure 1, 3 for Figure 2,
 | Figure 4 series | Linear, elementwise, and tensorial, each with projected and inferred operators | Six series; 48 cases total |
 | Figure 4 search ranges | `gamma` from approximately `7e-10` to `5e-5`; `lambda_Q` from approximately `6e-9` to `2e-4`; `lambda_L=0` | Candidate ranges only |
 | Figure 4 nonlinear selections | Per-rank/per-lifting selected `gamma` and inferred `lambda_Q` | Not available; requires author input |
-| Figure 4 linear status | Model dimension `N_r`; inferred `lambda_L=0`; no nonlinear regularization or alternating-minimization controls | Model parameters complete; aggregate metric and timing classification unresolved |
+| Figure 4 linear status | Model dimension `N_r`; inferred `lambda_L=0`; no nonlinear regularization or alternating-minimization controls | Fully specified with approved metric/timing policy |
 | Figure 5 ranks | `N_r=32`; `N_q=[1,2,4,8,16,32,64,128]` | Reported study design |
 | Figure 5 tensorial | `gamma=2.5e-8`; inferred `lambda_L=0`, `lambda_Q=4e-7` | Reported constants |
 | Figure 5 elementwise | `gamma=8e-7`; inferred `lambda_L=0`, `lambda_Q=8e-7` | Reported constants |
@@ -65,10 +65,24 @@ models. Linear projected cases carry no regularization. Linear inferred cases
 carry only `lambda_L=0`; they do not carry nonlinear inference tolerance or
 maximum-iteration metadata because their inference solve is closed-form.
 
-The exact time-aggregated relative convergence metric used by Figures 4 and 5
-is not established by repository code or supplied provenance. Publication-
-comparable Figure 4/5 execution is therefore refused. Exact online timing
-boundaries likewise require explicit classification.
+Figures 4 and 5 use the author-approved repository metric
+`relative_space_time_l2_error_v1`: the square root of the ratio of
+trapezoid-integrated squared M-errors to the uncentered transient FOM M-energy
+over `[0,10]`, including both endpoints. This is an explicit regeneration
+definition, not a historically recovered implementation. The preserved mass
+matrix does not add angular quadrature weights.
+
+Figure 5 uses online timing policy `rom_solve_ivp_only_v1`: wall-clock time
+inside the reduced `solve_ivp` call only. Speed-up divides the exact validated
+FOM-manifest integration time by that online value. Setup, lifting, projection,
+inference, initialization, reconstruction, metric evaluation, and writing are
+excluded and reported separately. One measured run with no warm-up or average
+is sufficient; values are machine-specific rather than scientific golden
+data.
+
+Both Figure 5 aggregate cases and all 16 linear Figure 4 cases are fully
+specified. The 32 nonlinear Figure 4 cases remain refused because their
+rank-specific selected `gamma` and inferred `lambda_Q` values are unavailable.
 
 ## Figure 4 author input
 

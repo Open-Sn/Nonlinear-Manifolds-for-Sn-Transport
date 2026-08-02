@@ -357,17 +357,14 @@ def test_listing_inspection_and_dry_runs_are_read_only(tmp_path):
         )
         assert linear_dry.returncode == 0, linear_dry.stderr
         linear_data = json.loads(linear_dry.stdout)
-        assert linear_data["action"] == "refuse_under_specified"
+        assert linear_data["action"] == "refuse_missing_snapshot"
         assert linear_data["lifting_dimension"] is None
         assert linear_data["lifting_regularization_gamma"] is None
         assert linear_data["lambda_L"] == expected_lambda_L
         assert linear_data["lambda_Q"] is None
         assert linear_data["inference_tolerance"] is None
         assert linear_data["maximum_iterations"] is None
-        assert linear_data["missing_information"] == [
-            "exact time-aggregated convergence metric definition",
-            "publication-comparable online timing stage classification",
-        ]
+        assert linear_data["missing_information"] == []
         assert linear_data["assembles_operators"] is False
         assert linear_data["solves"] is False
         assert linear_data["writes_files"] is False

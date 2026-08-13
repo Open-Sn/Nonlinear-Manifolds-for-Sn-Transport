@@ -37,6 +37,7 @@ import time as time
 # globalAbsorption, globalScattering, globalStreaming, xx, ndir, and the
 # SOLUTION_PATH constant pointing to the Sp-DG1 solution snapshots.
 from Transport_Driver_Benchmark_1D import *
+from PLOT import plot_relative_unresolved_energy, plot_rom_comparison
 # ---------------------------------------------------------------------------
 
 
@@ -190,7 +191,7 @@ class NonlinearManifoldReducedModel:
         NN = self.train_size
         for ii in range(4):
             self.global_derivative_set[:, ii] = self.global_training_set[:, ii : ii + 9] @ f_coeff
-            self.global_derivative_set[:, NN - 4 + ii] = self.global_training_set[:, NN - 4 - 9 : NN - 4] @ b_coeff
+            self.global_derivative_set[:, NN - 4 + ii] = self.global_training_set[:, NN - 4 - 9 + ii: NN - 4 + ii] @ b_coeff
         
         # Compute time derivatives for the remaining snapshots using central finite differences:
         for ii in range(NN - 8):
@@ -203,7 +204,7 @@ class NonlinearManifoldReducedModel:
     # ======================================================================
     # 3. PERFORM POD ON THE TRAINING SET
     # ======================================================================
-    def compute_pod(self, size_R: int = 16, size_Q: int = 364):
+    def compute_pod(self, size_R: int = 16, size_Q: int = 548):
         """
         Compute POD / SVD and split into linear and orthogonal complement bases.
  
@@ -212,7 +213,7 @@ class NonlinearManifoldReducedModel:
         size_R : int
             Number of linear POD modes retained (default 16).
         size_Q : int
-            Number of additional modes for the nonlinear closure (default 364 = 380 - 16).
+            Number of additional modes for the nonlinear closure (default 548 = 564 - 16).
         """
 
         # Compute the SVD of the training set weighted by the square root of the mass matrix:
@@ -526,8 +527,9 @@ if __name__ == "__main__":
     DT              = 0.001
     TRAIN_FRACTION  = 0.75
     SIZE_R          = 16        # number of linear POD modes
-    SIZE_Q          = 364       # 380 - SIZE_R extra modes for nonlinear closure
-    LAMBDA_E        = 1e-7 /  4 * int(TRAIN_FRACTION * TT / DT)
+    SIZE_Q          = 548       # 564 - SIZE_R extra modes for nonlinear closure
+    LAMBDA_E_TENS   = 1e-7 /  4 * int(TRAIN_FRACTION * TT / DT)
+    LAMBDA_E_POLY   = 1e-7 * 64 * int(TRAIN_FRACTION * TT / DT)
     LAMBDA_A        = 0.0       
     LAMBDA_H_TENS   = 1e-7 * 16 * int(TRAIN_FRACTION * TT / DT)
     LAMBDA_H_POLY   = 1e-4 * 16 * int(TRAIN_FRACTION * TT / DT)
@@ -569,7 +571,7 @@ if __name__ == "__main__":
 
     model_tens = prototype_model
     model_tens.nonlinear_embedding_type = "tens"
-    model_tens.compute_nonlinear_embedding(lambda_E=LAMBDA_E)
+    model_tens.compute_nonlinear_embedding(lambda_E=LAMBDA_E_TENS)
     model_tens.compute_projected_operators()
     model_tens.compute_initial_conditions()
  
@@ -586,7 +588,7 @@ if __name__ == "__main__":
  
     model_poly = prototype_model
     model_poly.nonlinear_embedding_type = "poly"
-    model_poly.compute_nonlinear_embedding(lambda_E=LAMBDA_E)
+    model_poly.compute_nonlinear_embedding(lambda_E=LAMBDA_E_POLY)
     model_poly.compute_projected_operators()
     model_poly.compute_initial_conditions()
  
@@ -620,7 +622,7 @@ if __name__ == "__main__":
  
     model_inf_tens = prototype_model
     model_inf_tens.nonlinear_embedding_type = "tens"
-    model_inf_tens.compute_nonlinear_embedding(lambda_E=LAMBDA_E)
+    model_inf_tens.compute_nonlinear_embedding(lambda_E=LAMBDA_E_TENS)
     model_inf_tens.compute_projected_operators()
     model_inf_tens.compute_inferred_operators(lambda_A=LAMBDA_A, lambda_H=LAMBDA_H_TENS)
     model_inf_tens.compute_initial_conditions()
@@ -638,7 +640,7 @@ if __name__ == "__main__":
  
     model_inf_poly = prototype_model
     model_inf_poly.nonlinear_embedding_type = "poly"
-    model_inf_poly.compute_nonlinear_embedding(lambda_E=LAMBDA_E)
+    model_inf_poly.compute_nonlinear_embedding(lambda_E=LAMBDA_E_POLY)
     model_inf_poly.compute_projected_operators()
     model_inf_poly.compute_inferred_operators(lambda_A=LAMBDA_A, lambda_H=LAMBDA_H_POLY)
     model_inf_poly.compute_initial_conditions()
@@ -647,7 +649,63 @@ if __name__ == "__main__":
     err_inf_poly = model_inf_poly.compute_errors(sol_inf_poly)
     print_error_summary("Polynomial inferred", err_inf_poly, model_inf_poly.train_size)
     print(f"  Elapsed: {time.time()-t0:.1f}s")
- 
+
+    # ==========================================================================
+    # TEST 7 – RELATIVE UNRESOLVED ENERGY
+    # ==========================================================================
+    print("\n--- TEST 7: Relative unresolved energy ---")
+    energy_plot_path = f"average_approximation_error_{SIZE_R}.pdf"
+    plot_relative_unresolved_energy(
+        prototype_model.svd_val,
+        size_R=SIZE_R,
+        size_Q=SIZE_Q,
+        output_path=energy_plot_path,
+        show=True,
+    )
+    print(f"  Figure saved to: {energy_plot_path}")
+
+    # ==========================================================================
+    # TEST 8 – PROJECTED ROM SOLUTION COMPARISON
+    # ==========================================================================
+    print("\n--- TEST 8: Projected ROM solution comparison ---")
+    projected_plot_path = f"Projected_{SIZE_R}.pdf"
+    plot_rom_comparison(
+        xx,
+        ndir,
+        prototype_model.solutionDG1,
+        (sol_lin, sol_poly, sol_tens),
+        (err_lin, err_poly, err_tens),
+        prototype_model.time_steps,
+        prototype_model.train_size,
+        frame=2500 - 1,
+        frame_marker_time=2.5,
+        training_boundary_time=TRAIN_FRACTION * TT,
+        output_path=projected_plot_path,
+        show=True,
+    )
+    print(f"  Figure saved to: {projected_plot_path}")
+
+    # ==========================================================================
+    # TEST 9 – INFERRED ROM SOLUTION COMPARISON
+    # ==========================================================================
+    print("\n--- TEST 9: Inferred ROM solution comparison ---")
+    inferred_plot_path = f"Inferred_{SIZE_R}.pdf"
+    plot_rom_comparison(
+        xx,
+        ndir,
+        prototype_model.solutionDG1,
+        (sol_inf_lin, sol_inf_poly, sol_inf_tens),
+        (err_inf_lin, err_inf_poly, err_inf_tens),
+        prototype_model.time_steps,
+        prototype_model.train_size,
+        frame=2500 - 1,
+        frame_marker_time=2.5,
+        training_boundary_time=TRAIN_FRACTION * TT,
+        output_path=inferred_plot_path,
+        show=True,
+    )
+    print(f"  Figure saved to: {inferred_plot_path}")
+
     # ==========================================================================
     # SUMMARY TABLE
     # ==========================================================================
@@ -667,5 +725,3 @@ if __name__ == "__main__":
     for label, err in results:
         print(f"  {label:<30}  {err.mean():>12.4e}  {err.max():>12.4e}")
     print("=" * 70)
- 
-

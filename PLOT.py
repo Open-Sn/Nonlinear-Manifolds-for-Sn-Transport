@@ -286,3 +286,312 @@ def plot_relative_unresolved_energy(
         plt.show()
 
     return fig, ax, relative_energy
+
+
+def _validate_rom_sweep_inputs(
+    dimensions,
+    projected_errors,
+    projected_times,
+    inferred_errors,
+    inferred_times,
+    error_series_count,
+    time_series_count,
+    reference_time,
+    allow_zero_dimensions=False,
+):
+    """Validate and normalize data shared by the ROM sweep plots."""
+    dimensions = np.asarray(dimensions, dtype=float)
+    if dimensions.ndim != 1 or dimensions.size == 0:
+        raise ValueError("dimensions must be a non-empty one-dimensional array.")
+    if not np.all(np.isfinite(dimensions)):
+        raise ValueError("dimensions must contain only finite values.")
+    if allow_zero_dimensions:
+        if np.any(dimensions < 0.0):
+            raise ValueError("dimensions must contain non-negative values.")
+    elif np.any(dimensions <= 0.0):
+        raise ValueError("dimensions must contain positive values.")
+
+    def validate_series(values, expected_count, name):
+        try:
+            series = tuple(np.asarray(value, dtype=float) for value in values)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{name} must be a sequence of numeric arrays.") from exc
+
+        if len(series) != expected_count:
+            raise ValueError(f"{name} must contain exactly {expected_count} series.")
+        if any(value.ndim != 1 or value.size != dimensions.size for value in series):
+            raise ValueError(
+                f"Every series in {name} must be one-dimensional and match dimensions."
+            )
+        if any(not np.all(np.isfinite(value)) for value in series):
+            raise ValueError(f"{name} must contain only finite values.")
+        if any(np.any(value <= 0.0) for value in series):
+            raise ValueError(f"{name} must contain only positive values.")
+        return series
+
+    projected_errors = validate_series(
+        projected_errors, error_series_count, "projected_errors"
+    )
+    projected_times = validate_series(
+        projected_times, time_series_count, "projected_times"
+    )
+    inferred_errors = validate_series(
+        inferred_errors, error_series_count, "inferred_errors"
+    )
+    inferred_times = validate_series(
+        inferred_times, time_series_count, "inferred_times"
+    )
+
+    if not np.isscalar(reference_time):
+        raise ValueError("reference_time must be a positive finite scalar.")
+    try:
+        reference_time = float(reference_time)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("reference_time must be a positive finite scalar.") from exc
+    if not np.isfinite(reference_time) or reference_time <= 0.0:
+        raise ValueError("reference_time must be a positive finite scalar.")
+
+    return (
+        dimensions,
+        projected_errors,
+        projected_times,
+        inferred_errors,
+        inferred_times,
+        reference_time,
+    )
+
+
+def plot_rom_dimension_sweep(
+    reduced_dimensions,
+    projected_errors,
+    projected_times,
+    inferred_errors,
+    inferred_times,
+    reference_time=541.1463527679443,
+    output_path=None,
+    show=False,
+):
+    """Plot error and online speed-up while varying the linear ROM dimension.
+
+    The error and timing inputs each contain three series ordered as tensorial,
+    polynomial, and linear. The left column displays projected streaming
+    operators and the right column displays inferred streaming operators.
+
+    Parameters
+    ----------
+    reduced_dimensions : array_like
+        Linear reduced dimensions, :math:`N_r`, used in the sweep.
+    projected_errors, inferred_errors : sequence of array_like
+        Relative time-average errors for tensorial, polynomial, and linear ROMs.
+    projected_times, inferred_times : sequence of array_like
+        Online solution times for tensorial, polynomial, and linear ROMs.
+    reference_time : float, optional
+        Full-order online time used to compute each speed-up.
+    output_path : path-like, optional
+        Destination for the figure. The figure is not saved when omitted.
+    show : bool, optional
+        Display the figure when ``True``.
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        Figure containing the four sweep panels.
+    axs : numpy.ndarray
+        Two-by-two array of axes.
+    """
+    (
+        reduced_dimensions,
+        projected_errors,
+        projected_times,
+        inferred_errors,
+        inferred_times,
+        reference_time,
+    ) = _validate_rom_sweep_inputs(
+        reduced_dimensions,
+        projected_errors,
+        projected_times,
+        inferred_errors,
+        inferred_times,
+        error_series_count=3,
+        time_series_count=3,
+        reference_time=reference_time,
+    )
+
+    labels = ("Tensorial", "Polynomial", "Linear")
+    styles = ("-<", "->", "-v")
+    colors = ("C2", "C1", "C0")
+    xticks = [0, 16, 32, 48, 64, 80]
+    fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(7.0, 5.2))
+
+    for errors, times, column in (
+        (projected_errors, projected_times, 0),
+        (inferred_errors, inferred_times, 1),
+    ):
+        for error, timing, style, color, label in zip(
+            errors, times, styles, colors, labels
+        ):
+            axs[0, column].semilogy(
+                reduced_dimensions, error, style, color=color, label=label
+            )
+            axs[1, column].semilogy(
+                reduced_dimensions,
+                reference_time / timing,
+                style,
+                color=color,
+                label=label,
+            )
+
+        axs[0, column].set_xticks(xticks)
+        axs[1, column].set_xticks(xticks)
+        axs[0, column].tick_params(labelbottom=False)
+        axs[0, column].set_xlim((0, 80))
+        axs[1, column].set_xlim((0, 80))
+        axs[0, column].set_ylim((1e-3, 1e-1))
+        axs[1, column].set_ylim((5e1, 3e3))
+        axs[0, column].grid(which="both")
+        axs[1, column].grid(which="both")
+        axs[0, column].legend(loc="lower left")
+        axs[1, column].legend()
+        axs[1, column].set_xlabel(r"$N_r$")
+
+    axs[0, 0].set_title("Projected Streaming Operator")
+    axs[0, 1].set_title("Inferred Streaming Operator")
+    axs[0, 0].set_ylabel("Relative Time-Average Error")
+    axs[1, 0].set_ylabel("Online Speed-Up")
+    axs[0, 1].tick_params(labelleft=False)
+    axs[1, 1].tick_params(labelleft=False)
+
+    fig.tight_layout()
+    if output_path is not None:
+        fig.savefig(output_path)
+    if show:
+        plt.show()
+
+    return fig, axs
+
+
+def plot_closure_dimension_sweep(
+    closure_dimensions,
+    projected_errors,
+    projected_times,
+    inferred_errors,
+    inferred_times,
+    reference_time=541.1463527679443,
+    output_path=None,
+    show=False,
+):
+    """Plot error and online speed-up while varying the closure dimension.
+
+    Error inputs contain five series ordered as tensorial, polynomial, fixed
+    linear, expanded linear, and projection. Timing inputs contain the same
+    first four model series and omit projection. A zero-dimensional entry is
+    accepted for compatibility with the review sweep and omitted from the
+    logarithmic plots.
+
+    Parameters
+    ----------
+    closure_dimensions : array_like
+        Nonlinear closure dimensions, :math:`N_q`, used in the sweep.
+    projected_errors, inferred_errors : sequence of array_like
+        Five relative time-average error series in the order described above.
+    projected_times, inferred_times : sequence of array_like
+        Four online solution-time series, excluding projection.
+    reference_time : float, optional
+        Full-order online time used to compute each speed-up.
+    output_path : path-like, optional
+        Destination for the figure. The figure is not saved when omitted.
+    show : bool, optional
+        Display the figure when ``True``.
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        Figure containing the four sweep panels.
+    axs : numpy.ndarray
+        Two-by-two array of axes.
+    """
+    (
+        closure_dimensions,
+        projected_errors,
+        projected_times,
+        inferred_errors,
+        inferred_times,
+        reference_time,
+    ) = _validate_rom_sweep_inputs(
+        closure_dimensions,
+        projected_errors,
+        projected_times,
+        inferred_errors,
+        inferred_times,
+        error_series_count=5,
+        time_series_count=4,
+        reference_time=reference_time,
+        allow_zero_dimensions=True,
+    )
+
+    positive_dimensions = closure_dimensions > 0.0
+    if not np.any(positive_dimensions):
+        raise ValueError("closure_dimensions must contain at least one positive value.")
+    closure_dimensions = closure_dimensions[positive_dimensions]
+    projected_errors = tuple(value[positive_dimensions] for value in projected_errors)
+    projected_times = tuple(value[positive_dimensions] for value in projected_times)
+    inferred_errors = tuple(value[positive_dimensions] for value in inferred_errors)
+    inferred_times = tuple(value[positive_dimensions] for value in inferred_times)
+
+    error_labels = (
+        r"Tensorial    ($N_r = 32$)",
+        r"Polynomial ($N_r = 32$)",
+        r"Linear ($N_r = 32$)",
+        r"Linear ($N_r = 32+N_q$)",
+        "Projection",
+    )
+    styles = ("-<", "->", "-v", "-^", "-o")
+    colors = ("C2", "C1", "C0", "C3", "C4")
+
+    fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(7.0, 5.2))
+
+    for errors, times, column in (
+        (projected_errors, projected_times, 0),
+        (inferred_errors, inferred_times, 1),
+    ):
+        for error, style, color, label in zip(
+            errors, styles, colors, error_labels
+        ):
+            axs[0, column].loglog(
+                closure_dimensions, error, style, color=color, label=label
+            )
+
+        for timing, style, color, label in zip(
+            times, styles[:4], colors[:4], error_labels[:4]
+        ):
+            axs[1, column].loglog(
+                closure_dimensions,
+                reference_time / timing,
+                style,
+                color=color,
+                label=label,
+            )
+
+        axs[0, column].tick_params(labelbottom=False)
+        axs[0, column].set_ylim((1e-3 / 8, 6e-2))
+        axs[1, column].set_ylim((5e1, 6e2))
+        axs[0, column].grid(which="both")
+        axs[1, column].grid(which="both")
+        axs[0, column].legend(loc="lower left")
+        axs[1, column].legend(loc="lower left")
+        axs[1, column].set_xlabel(r"$N_q$")
+
+    axs[0, 0].set_title("Projected Streaming Operator")
+    axs[0, 1].set_title("Inferred Streaming Operator")
+    axs[0, 0].set_ylabel("Relative Time-Average Error")
+    axs[1, 0].set_ylabel("Online Speed-Up")
+    axs[0, 1].tick_params(labelleft=False)
+    axs[1, 1].tick_params(labelleft=False)
+
+    fig.tight_layout()
+    if output_path is not None:
+        fig.savefig(output_path)
+    if show:
+        plt.show()
+
+    return fig, axs

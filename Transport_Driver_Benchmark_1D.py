@@ -100,13 +100,13 @@ def make_psi_bc_dir(amp_func, left=None, right=None):
 
         # Set the boundary conditions according to the specified types for the left boundary:
         if left == "isotropic"    : vec[half:] = amp
-        if left == "most_grazing" : vec[-1]    = amp
-        if left == "most_normal"  : vec[half]  = amp
+        if left == "most_grazing" : vec[half]  = amp
+        if left == "most_normal"  : vec[-1]    = amp
 
         # Set the boundary conditions according to the specified types for the right boundary:
         if right == "isotropic"   : vec[:half]    = amp
-        if right == "most_grazing": vec[0]        = amp
-        if right == "most_normal" : vec[half - 1] = amp
+        if right == "most_grazing": vec[half - 1] = amp
+        if right == "most_normal" : vec[0]        = amp
 
         # Return the boundary condition vector:
         return vec
@@ -156,8 +156,8 @@ def solve_transport(Psi0, t_final, qext_func=None, psi_bc_func=None, n_output_ti
 if not os.path.exists(SOLUTION_PATH):
     print(f"File '{SOLUTION_PATH}' not found. Solving the time-dependent transport equation and saving the solution. This may take a while...")
 
-    # Define a boundary condition function that applies a constant incoming flux of 1.0 in the most grazing direction:
-    psi_bc_func = make_psi_bc_dir(lambda tt: 1.0, left="most_grazing", right=None)
+    # Define a boundary condition function that applies a constant incoming flux of 1.0 in the most normal direction:
+    psi_bc_func = make_psi_bc_dir(lambda tt: 1.0, left="most_normal", right=None)
 
     # Define an initial condition with a smooth transition from 0 to 1 in the first region:
     Psi0 = np.concatenate([0 * xx, 0 * xx, 0 * xx, 1 - 1 / (1 + np.exp(-100 * (xx - 0.1)))])

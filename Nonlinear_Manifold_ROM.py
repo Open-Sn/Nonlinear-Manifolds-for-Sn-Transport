@@ -60,7 +60,7 @@ class NonlinearManifoldReducedModel:
 
     def __init__(
         self, 
-        nonlinear_embedding_type: str = "tensorial", # "poly", "tens", "rbf", or None
+        nonlinear_embedding_type: str = "tensorial", # "poly", "tensorial", "rbf", or None
         eps_rbf: float = None,
         every_rbf: int = None,
     ):
@@ -162,7 +162,7 @@ class NonlinearManifoldReducedModel:
         self.solutionInf = sparse.linalg.spsolve(globalFF, globalRB)
 
         # Define the time steps corresponding to the snapshots:
-        self.time_steps = np.linspace(0.0, self.TT - self.dt, self.solutionDG1.shape[1])
+        self.time_steps = np.linspace(0.0, self.TT, self.solutionDG1.shape[1])
 
         # Define training set and compute its size:
         self.train_fraction = train_fraction
@@ -196,7 +196,8 @@ class NonlinearManifoldReducedModel:
         NN = self.train_size
         for ii in range(4):
             self.global_derivative_set[:, ii] = self.global_training_set[:, ii : ii + 9] @ f_coeff
-            self.global_derivative_set[:, NN - 4 + ii] = self.global_training_set[:, NN - 4 - 9 + ii: NN - 4 + ii] @ b_coeff
+            jj = NN - 4 + ii
+            self.global_derivative_set[:, jj] = self.global_training_set[:, jj - 8 : jj + 1] @ b_coeff
         
         # Compute time derivatives for the remaining snapshots using central finite differences:
         for ii in range(NN - 8):
@@ -319,7 +320,7 @@ class NonlinearManifoldReducedModel:
         self.lambda_E = lambda_E
 
         #  Define nonlinear function handles based on the specified embedding type (tensorial):
-        if self.nonlinear_embedding_type == "tens":
+        if self.nonlinear_embedding_type == "tensorial":
             sym_indeces = np.triu_indices(self.size_R)
             self.nonlinear_function = lambda matrix: (
                 np.einsum("i...,j...->ij...", matrix, matrix)[sym_indeces[0], sym_indeces[1], ...]
@@ -632,7 +633,7 @@ if __name__ == "__main__":
     t0 = time.time()
 
     model_tens = prototype_model
-    model_tens.nonlinear_embedding_type = "tens"
+    model_tens.nonlinear_embedding_type = "tensorial"
     model_tens.compute_nonlinear_embedding(lambda_E=LAMBDA_E_TENS)
     model_tens.compute_projected_operators()
     model_tens.compute_initial_conditions()
@@ -683,7 +684,7 @@ if __name__ == "__main__":
     t0 = time.time()
  
     model_inf_tens = prototype_model
-    model_inf_tens.nonlinear_embedding_type = "tens"
+    model_inf_tens.nonlinear_embedding_type = "tensorial"
     model_inf_tens.compute_nonlinear_embedding(lambda_E=LAMBDA_E_TENS)
     model_inf_tens.compute_projected_operators()
     model_inf_tens.compute_inferred_operators(lambda_A=LAMBDA_A, lambda_H=LAMBDA_H_TENS)
@@ -716,7 +717,7 @@ if __name__ == "__main__":
     # TEST 7 – RELATIVE UNRESOLVED ENERGY
     # ==========================================================================
     print("\n--- TEST 7: Relative unresolved energy ---")
-    energy_plot_path = f"average_approximation_error_{SIZE_R}.pdf"
+    energy_plot_path = f"Fig_01_average_approximation_error_{SIZE_R}.pdf"
     plot_relative_unresolved_energy(
         prototype_model.svd_val,
         size_R=SIZE_R,
@@ -730,7 +731,7 @@ if __name__ == "__main__":
     # TEST 8 – PROJECTED ROM SOLUTION COMPARISON
     # ==========================================================================
     print("\n--- TEST 8: Projected ROM solution comparison ---")
-    projected_plot_path = f"Projected_{SIZE_R}.pdf"
+    projected_plot_path = f"Fig_02_Projected_{SIZE_R}.pdf"
     plot_rom_comparison(
         xx,
         ndir,
@@ -751,7 +752,7 @@ if __name__ == "__main__":
     # TEST 9 – INFERRED ROM SOLUTION COMPARISON
     # ==========================================================================
     print("\n--- TEST 9: Inferred ROM solution comparison ---")
-    inferred_plot_path = f"Inferred_{SIZE_R}.pdf"
+    inferred_plot_path = f"Fig_03_Inferred_{SIZE_R}.pdf"
     plot_rom_comparison(
         xx,
         ndir,
@@ -890,7 +891,7 @@ if __name__ == "__main__":
             specifications = (
                 ("linear", None, None, 0.0),
                 ("polynomial", "poly", lambda_E_poly[index], lambda_H_poly[index]),
-                ("tensorial", "tens",  lambda_E_tens[index], lambda_H_tens[index]),
+                ("tensorial", "tensorial", lambda_E_tens[index], lambda_H_tens[index]),
             )
 
             # Iterate over the ROM specifications (linear, polynomial, tensorial) and evaluate each one.
@@ -948,7 +949,7 @@ if __name__ == "__main__":
         intrusive=False,
     )
 
-    rom_dimension_plot_path = "Projected_Integral_Errors_d.pdf"
+    rom_dimension_plot_path = "Fig_04_Projected_Integral_Errors_d.pdf"
     plot_rom_dimension_sweep(
         NR_VALUES,
         nr_projected_errors,
@@ -984,7 +985,7 @@ if __name__ == "__main__":
                 ("expanded_linear", 32 + size_Q, 0, None, None, 0.0),
                 ("linear", 32, 0, None, None, 0.0),
                 ("polynomial", 32, size_Q, "poly", lambda_E_poly, lambda_H_poly),
-                ("tensorial", 32, size_Q, "tens", lambda_E_tens, lambda_H_tens),
+                ("tensorial", 32, size_Q, "tensorial", lambda_E_tens, lambda_H_tens),
             )
 
             for label, size_R, model_size_Q, embedding_type, lambda_E, lambda_H in specifications:
@@ -1019,7 +1020,7 @@ if __name__ == "__main__":
     nq_projected_errors = nq_projected_errors + (nq_projection_errors,)
     nq_inferred_errors = nq_inferred_errors + (nq_projection_errors,)
 
-    closure_dimension_plot_path = "Projected_Integral_Errors_Nq_test.pdf"
+    closure_dimension_plot_path = "Fig_05_Projected_Integral_Errors_Nq_test.pdf"
     plot_closure_dimension_sweep(
         NQ_VALUES,
         nq_projected_errors,

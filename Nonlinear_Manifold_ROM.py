@@ -37,7 +37,12 @@ import time as time
 # globalAbsorption, globalScattering, globalStreaming, xx, ndir, and the
 # SOLUTION_PATH constant pointing to the Sp-DG1 solution snapshots.
 from Transport_Driver_Benchmark_1D import *
-from PLOT import plot_relative_unresolved_energy, plot_rom_comparison
+from PLOT import (
+ plot_closure_dimension_sweep,
+    plot_relative_unresolved_energy,
+    plot_rom_comparison,
+    plot_rom_dimension_sweep,
+)
 # ---------------------------------------------------------------------------
 
 
@@ -224,17 +229,40 @@ class NonlinearManifoldReducedModel:
             hermitian=False,
         )
 
-        # Store the specified sizes of the linear and orthogonal complement sub-bases:
-        self.size_R = size_R
-        self.size_Q = size_Q
-
         # Normalize the basis by the square root of the mass matrix:
         self.basis = linalg.spsolve(globalMMsqrt, basis)
         self.svd_val = svd_val
         self.coefficients = np.diag(svd_val) @ coefficients
- 
-        # Split the POD basis and coefficients into linear and orthogonal complement sub-bases:
+
+        # Select the requested linear and orthogonal-complement sub-bases:
+        self.select_pod_subspaces(size_R=size_R, size_Q=size_Q)
+
+        # Print confirmation message:
+        print(f"POD done. size_R={self.size_R}, size_Q={self.size_Q}.")
+
+
+    def select_pod_subspaces(self, size_R: int, size_Q: int):
+        """Select reduced subspaces from an already-computed POD decomposition.
+
+        This inexpensive operation is useful for reduced-dimension studies: it
+        updates the POD slices without recomputing the mass-weighted SVD and
+        clears every quantity that depends on the old reduced dimensions.
+
+        Parameters
+        ----------
+        size_R : int
+            Number of linear POD modes.
+        size_Q : int
+            Number of orthogonal-complement POD modes used by the nonlinear
+            lifting.
+        """
+
+        # Store the requested sizes for the linear and orthogonal-complement subspaces.
+        self.size_R = int(size_R)
+        self.size_Q = int(size_Q)
         R, Q = self.size_R, self.size_Q
+
+        # Extract the linear and orthogonal-complement POD subspaces from the full basis and coefficients.
         self.pod_linear_basis = self.basis[:, :R]
         self.pod_linear_coeff = self.coefficients[:R, :]
         self.pod_ortho_basis  = self.basis[:, R : Q + R]
@@ -242,8 +270,34 @@ class NonlinearManifoldReducedModel:
         self.pod_global_basis  = self.basis[:, : Q + R]
         self.pod_global_coeff  = self.coefficients[: Q + R, :]
 
-        # Print confirmation message:
-        print(f"POD done. size_R={R}, size_Q={Q}.")
+        # Clear all reduced quantities tied to the previous POD partition.
+        self.nonlinear_function = lambda matrix: None
+        self.nonlinear_lift_matrix = None
+        self.pod_nonlinear_coeff = None
+        self.pod_nonlinear_basis = None
+
+        # Clear all projected quantities tied to the previous POD partition.
+        self.projectedDerivativeLinear = None
+        self.projectedAbsorptionLinear = None
+        self.projectedScatteringLinear = None
+        self.projectedStreamingLinear = None
+        self.projectedLinear = None
+        self.projectedAbsorptionNonlinear = None
+        self.projectedScatteringNonlinear = None
+        self.projectedStreamingNonlinear = None
+        self.projectedNonlinear = None
+
+        # Clear all inferred quantities tied to the previous POD partition.
+        self.inferredStreamingLinear = None
+        self.inferredStreamingNonlinear = None
+        self.inferredLinear = None
+        self.inferredNonlinear = None
+        self.initial_condition = None
+
+        # Clear all regularisation weights for the nonlinear embedding:
+        self.lambda_E = None
+        self.lambda_A = None
+        self.lambda_H = None
 
 
     # ======================================================================
@@ -456,12 +510,16 @@ class NonlinearManifoldReducedModel:
     # ======================================================================
     # 8. SOLVE REDUCED PROBLEMS
     # ======================================================================
-    def solve(self, intrusive: bool = True):
+    def solve(self, intrusive: bool = True, return_online_time: bool = False):
         """
         Integrate the projected or inferred linear, or nonlinear reduced-order models in time 
         and reconstruct the full-order solution from the reduced coefficients and the POD bases. 
         The `intrusive` flag determines whether to solve the projected (intrusive) or inferred 
-        (semi-intrusive) reduced models. 
+        (semi-intrusive) reduced models.
+
+        When ``return_online_time`` is true, also return the wall time spent
+        inside ``solve_ivp``.  Reconstruction is intentionally excluded so
+        that the reported online speed-up matches the notebook benchmarks.
         """
 
         # Compute the initial conditions if they have not been computed yet:
@@ -482,14 +540,18 @@ class NonlinearManifoldReducedModel:
 
         # Integrate the reduced-order model over the full time interval using a stiff ODE solver:
         ivp_kw = dict(t_span=(0.0, self.TT), method="Radau", atol=1e-12, rtol=1e-9, t_eval=self.time_steps)
+        online_start = time.perf_counter()
         ivp_result  = sp.integrate.solve_ivp(fun=ff, y0=self.initial_condition, **ivp_kw)
+        online_time = time.perf_counter() - online_start
 
         # Reconstruct the full-order solution from the reduced coefficients and the POD bases:
         reconstruction = self.solutionInf[:, None] + self.pod_linear_basis @ ivp_result .y
         if self.nonlinear_embedding_type is not None:
             reconstruction += self.pod_nonlinear_basis @ self.nonlinear_function(ivp_result .y)
 
-        # Return the reconstructed solution:
+        # Return the reconstructed solution and, optionally, the solve-only time:
+        if return_online_time:
+            return reconstruction, online_time
         return reconstruction
 
 
@@ -705,6 +767,270 @@ if __name__ == "__main__":
         show=True,
     )
     print(f"  Figure saved to: {inferred_plot_path}")
+
+    # The six full reconstructions are no longer needed; release them before
+    # the dimension sweeps construct additional full-order reconstructions.
+    del sol_lin, sol_poly, sol_tens
+    del sol_inf_lin, sol_inf_poly, sol_inf_tens
+
+    # Function to create a lightweight model for a given combination of reduced dimensions and embedding type.
+    def make_sweep_model(size_R, size_Q, embedding_type=None, lambda_E=None):
+        """Make a lightweight model copy and select POD slices without a new SVD."""
+
+        # Select the POD subspaces for the lightweight model based on the specified sizes.
+        model = copy.copy(prototype_model)
+        model.nonlinear_embedding_type = embedding_type
+        model.select_pod_subspaces(size_R=int(size_R), size_Q=int(size_Q))
+
+        # If an embedding type is specified, compute the nonlinear embedding for the lightweight model.
+        if embedding_type is not None:
+            model.compute_nonlinear_embedding(lambda_E=lambda_E)
+
+        # Compute the projected operators and initial conditions for the lightweight model.
+        model.compute_projected_operators()
+        model.compute_initial_conditions()
+
+        # Return the lightweight model with the selected POD subspaces and computed operators.
+        return model
+
+    # Compute the space-time mass energy for a given snapshot matrix in chunks to avoid large temporary arrays.
+    def space_time_mass_energy(snapshot_matrix, chunk_size=128):
+        """Return the sum of squared mass norms without a full-size temporary."""
+
+        # Ensure the snapshot matrix is a 2D NumPy array.
+        snapshot_matrix = np.asarray(snapshot_matrix)
+        if snapshot_matrix.ndim != 2:
+            raise ValueError("snapshot_matrix must be two-dimensional.")
+
+        # Initialize the energy accumulator.
+        energy = 0.0
+        for start in range(0, snapshot_matrix.shape[1], chunk_size):
+            stop = min(start + chunk_size, snapshot_matrix.shape[1])
+            block = snapshot_matrix[:, start:stop]
+            energy += np.sum(block * globalMM.dot(block), dtype=np.float64)
+
+        # Return the computed space-time mass energy for the snapshot matrix.
+        return float(energy)
+
+    # Compute the reference space-time energy for the reference solution.
+    reference_solution = prototype_model.solutionDG1
+    reference_space_time_energy = space_time_mass_energy(reference_solution)
+
+    # Compute the relative space-time error for a given reconstruction compared to the reference solution.
+    def relative_space_time_error(reconstruction):
+        """Notebook metric: aggregate relative space-time mass-norm error."""
+
+        # Load the reconstruction as a NumPy array for consistency.
+        reconstruction = np.asarray(reconstruction)
+
+        # Iterate over the snapshot matrix in chunks to compute the error energy efficiently.
+        error_energy = 0.0
+        chunk_size = 128
+        for start in range(0, reference_solution.shape[1], chunk_size):
+
+            # Incrementally compute the error energy for the current chunk.
+            stop = min(start + chunk_size, reference_solution.shape[1])
+            difference = reconstruction[:, start:stop] - reference_solution[:, start:stop]
+            error_energy += np.sum(difference * globalMM.dot(difference), dtype=np.float64)
+
+        # Return the relative space-time error as the square root of the normalized error energy.
+        return np.sqrt(error_energy / reference_space_time_energy)
+
+    def projection_space_time_error(n_modes):
+        """Compute the orthogonal POD projection baseline used in test 11."""
+
+        # Extract the projection basis for the first n_modes from the prototype model.
+        projection_basis = prototype_model.basis[:, :n_modes]
+
+        # Iterate over the snapshot matrix in chunks to compute the projection error efficiently.
+        error_energy = 0.0
+        chunk_size = 128
+        for start in range(0, reference_solution.shape[1], chunk_size):
+
+            # Compute the projection error for the current chunk.
+            stop = min(start + chunk_size, reference_solution.shape[1])
+            centered = reference_solution[:, start:stop] - prototype_model.solutionInf[:, None]
+            projected_coefficients = projection_basis.T @ globalMM.dot(centered)
+            difference = projection_basis @ projected_coefficients - centered
+            error_energy += np.sum(difference * globalMM.dot(difference), dtype=np.float64)
+
+        # Return the relative space-time projection error as the square root of the normalized error energy.
+        return np.sqrt(error_energy / reference_space_time_energy)
+
+    # Define a helper function to solve a ROM and compute its error and online time.
+    def solve_and_score(model, intrusive):
+        """Solve one ROM and return the notebook error and solve-only time."""
+        reconstruction, online_time = model.solve(intrusive=intrusive, return_online_time=True)
+        aggregate_error = relative_space_time_error(reconstruction)
+        del reconstruction
+        return aggregate_error, online_time
+
+    def run_rom_dimension_sweep(
+        reduced_dimensions,
+        lambda_E_tens,
+        lambda_E_poly,
+        lambda_H_tens,
+        lambda_H_poly,
+        intrusive,
+        total_dimension=564,
+    ):
+        """Evaluate the three ROMs in the inference-notebook size study."""
+
+        # Initialize dictionaries to store errors and online times for each ROM type.
+        errors = {"tensorial": [], "polynomial": [], "linear": []}
+        online_times = {"tensorial": [], "polynomial": [], "linear": []}
+        approach = "projected" if intrusive else "inferred"
+
+        # Iterate over the reduced dimensions and evaluate the ROMs for each configuration.
+        for index, size_R in enumerate(reduced_dimensions):
+            size_Q = total_dimension - int(size_R)
+            print(f"  [{approach}] N_r={size_R}, N_q={size_Q}")
+
+            # Define the ROM specifications for linear, polynomial, and tensorial models.
+            specifications = (
+                ("linear", None, None, 0.0),
+                ("polynomial", "poly", lambda_E_poly[index], lambda_H_poly[index]),
+                ("tensorial", "tens",  lambda_E_tens[index], lambda_H_tens[index]),
+            )
+
+            # Iterate over the ROM specifications (linear, polynomial, tensorial) and evaluate each one.
+            for label, embedding_type, lambda_E, lambda_H in specifications:
+                model = make_sweep_model(
+                    size_R=size_R,
+                    size_Q=size_Q,
+                    embedding_type=embedding_type,
+                    lambda_E=lambda_E,
+                )
+
+                # If the ROM is inferred, compute the inferred operators with the specified regularization parameters.
+                if not intrusive:
+                    model.compute_inferred_operators(lambda_A=0.0, lambda_H=lambda_H)
+
+                # Solve the ROM and record the error and online time.
+                aggregate_error, online_time = solve_and_score(model, intrusive)
+                errors[label].append(aggregate_error)
+                online_times[label].append(online_time)
+
+                # Print the results for this ROM configuration.
+                print(f"    {label:<10} error={aggregate_error:.4e}, online={online_time:.3f}s")
+
+        # Return the errors and online times for the ROMs in the specified order.
+        order = ("tensorial", "polynomial", "linear")
+        return (tuple(np.asarray(errors[label]) for label in order), tuple(np.asarray(online_times[label]) for label in order))
+
+    # ==========================================================================
+    # TEST 10 – FIXED-TOTAL-DIMENSION N_r STUDY (Transport_Inference.ipynb)
+    # ==========================================================================
+    print("\n--- TEST 10: ROM dimension accuracy and online speed-up ---")
+    NR_VALUES = np.array([8, 16, 24, 32, 40, 48, 56, 64])
+    N_TRAIN = prototype_model.train_size
+
+    # Regularization parameters for the ROM dimension sweep.
+    NR_LAMBDA_E_TENS = 1e-7 * N_TRAIN * np.array([16, 1 / 4, 1 / 4, 1 / 4, 1 / 32, 1 / 64, 1 / 64, 1 / 128])
+    NR_LAMBDA_E_POLY = 1e-7 * N_TRAIN * np.array([512, 64, 64, 8, 1, 1, 1 / 8, 1 / 8])
+    NR_LAMBDA_H_TENS = 1e-7 * N_TRAIN * np.array([4, 16, 4, 4, 1 / 4, 1 / 2, 1 / 4, 1 / 16])
+    NR_LAMBDA_H_POLY = 1e-7 * N_TRAIN * np.array([1024, 256, 32, 8, 16, 4, 4, 4])
+
+    nr_projected_errors, nr_projected_times = run_rom_dimension_sweep(
+        NR_VALUES,
+        NR_LAMBDA_E_TENS,
+        NR_LAMBDA_E_POLY,
+        NR_LAMBDA_H_TENS,
+        NR_LAMBDA_H_POLY,
+        intrusive=True,
+    )
+    nr_inferred_errors, nr_inferred_times = run_rom_dimension_sweep(
+        NR_VALUES,
+        NR_LAMBDA_E_TENS,
+        NR_LAMBDA_E_POLY,
+        NR_LAMBDA_H_TENS,
+        NR_LAMBDA_H_POLY,
+        intrusive=False,
+    )
+
+    rom_dimension_plot_path = "Projected_Integral_Errors_d.pdf"
+    plot_rom_dimension_sweep(
+        NR_VALUES,
+        nr_projected_errors,
+        nr_projected_times,
+        nr_inferred_errors,
+        nr_inferred_times,
+        reference_time=541.1463527679443,
+        output_path=rom_dimension_plot_path,
+        show=True,
+    )
+    print(f"  Figure saved to: {rom_dimension_plot_path}")
+
+    def run_closure_dimension_sweep(closure_dimensions, intrusive):
+        """Evaluate the four ROMs in the review-notebook closure study."""
+        errors = {
+            "tensorial": [],
+            "polynomial": [],
+            "linear": [],
+            "expanded_linear": [],
+        }
+        online_times = {label: [] for label in errors}
+        approach = "projected" if intrusive else "inferred"
+
+        lambda_E_tens = (1e-7 / 4) * N_TRAIN
+        lambda_E_poly = (1e-7 * 8) * N_TRAIN
+        lambda_H_tens = (1e-7 * 4) * N_TRAIN
+        lambda_H_poly = (1e-7 * 8) * N_TRAIN
+
+        for size_Q in closure_dimensions:
+            size_Q = int(size_Q)
+            print(f"  [{approach}] N_r=32, N_q={size_Q}")
+            specifications = (
+                ("expanded_linear", 32 + size_Q, 0, None, None, 0.0),
+                ("linear", 32, 0, None, None, 0.0),
+                ("polynomial", 32, size_Q, "poly", lambda_E_poly, lambda_H_poly),
+                ("tensorial", 32, size_Q, "tens", lambda_E_tens, lambda_H_tens),
+            )
+
+            for label, size_R, model_size_Q, embedding_type, lambda_E, lambda_H in specifications:
+                model = make_sweep_model(
+                    size_R=size_R,
+                    size_Q=model_size_Q,
+                    embedding_type=embedding_type,
+                    lambda_E=lambda_E,
+                )
+                if not intrusive:
+                    model.compute_inferred_operators(lambda_A=0.0, lambda_H=lambda_H)
+                aggregate_error, online_time = solve_and_score(model, intrusive)
+                errors[label].append(aggregate_error)
+                online_times[label].append(online_time)
+                print(f"    {label:<15} error={aggregate_error:.4e}, online={online_time:.3f}s")
+
+        order = ("tensorial", "polynomial", "linear", "expanded_linear")
+        return (
+            tuple(np.asarray(errors[label]) for label in order),
+            tuple(np.asarray(online_times[label]) for label in order),
+        )
+
+    # ==========================================================================
+    # TEST 11 – FIXED-N_r N_q STUDY (Transport_Review.ipynb: "THIS ONE")
+    # ==========================================================================
+    print("\n--- TEST 11: Nonlinear closure accuracy and online speed-up ---")
+    NQ_VALUES = np.array([0, 1, 2, 4, 8, 16, 32, 64, 128])
+    nq_projection_errors = np.asarray([projection_space_time_error(32 + size_Q) for size_Q in NQ_VALUES])
+
+    nq_projected_errors, nq_projected_times = run_closure_dimension_sweep(NQ_VALUES, intrusive=True)
+    nq_inferred_errors, nq_inferred_times = run_closure_dimension_sweep(NQ_VALUES, intrusive=False)
+    nq_projected_errors = nq_projected_errors + (nq_projection_errors,)
+    nq_inferred_errors = nq_inferred_errors + (nq_projection_errors,)
+
+    closure_dimension_plot_path = "Projected_Integral_Errors_Nq_test.pdf"
+    plot_closure_dimension_sweep(
+        NQ_VALUES,
+        nq_projected_errors,
+        nq_projected_times,
+        nq_inferred_errors,
+        nq_inferred_times,
+        reference_time=541.1463527679443,
+        output_path=closure_dimension_plot_path,
+        show=True,
+    )
+    print(f"  Figure saved to: {closure_dimension_plot_path}")
 
     # ==========================================================================
     # SUMMARY TABLE

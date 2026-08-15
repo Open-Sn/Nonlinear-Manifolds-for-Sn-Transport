@@ -447,7 +447,7 @@ def plot_rom_dimension_sweep(
         axs[0, column].set_xlim((0, 80))
         axs[1, column].set_xlim((0, 80))
         axs[0, column].set_ylim((1e-3, 1e-1))
-        axs[1, column].set_ylim((5e1, 3e3))
+        axs[1, column].set_ylim((1e1, 3e3))
         axs[0, column].grid(which="both")
         axs[1, column].grid(which="both")
         axs[0, column].legend(loc="lower left")
@@ -574,7 +574,7 @@ def plot_closure_dimension_sweep(
 
         axs[0, column].tick_params(labelbottom=False)
         axs[0, column].set_ylim((1e-3 / 8, 6e-2))
-        axs[1, column].set_ylim((5e1, 6e2))
+        axs[1, column].set_ylim((1e1, 6e2))
         axs[0, column].grid(which="both")
         axs[1, column].grid(which="both")
         axs[0, column].legend(loc="lower left")

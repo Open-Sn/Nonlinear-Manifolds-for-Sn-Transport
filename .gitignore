@@ -205,3 +205,5 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+solutionDG1_A4_T10_Nt10001_Nx750_continuous_bis.npy
+*.pdf

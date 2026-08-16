@@ -207,3 +207,21 @@ marimo/_lsp/
 __marimo__/
 solutionDG1_A4_T10_Nt10001_Nx750_continuous_bis.npy
 *.pdf
+
+# 2-D generated scientific data. Keep the recovered source/input files visible.
+/2d_fom_preprocessing_pod_handoff.tar.gz
+2D/01_run_opensn/*.vtu
+2D/01_run_opensn/*.pvtu
+2D/01_run_opensn/*.tar
+2D/01_run_opensn/*.tar.gz
+2D/02_prepare_for_rom/*.vtu
+2D/02_prepare_for_rom/*.pvtu
+2D/02_prepare_for_rom/*.tar
+2D/02_prepare_for_rom/*.tar.gz
+2D/02_prepare_for_rom/3newh_aflx/
+2D/02_prepare_for_rom/dg_mass_out/
+2D/02_prepare_for_rom/full_order_out/
+2D/02_prepare_for_rom/psi_matrix_centered_fp64.npz
+2D/02_prepare_for_rom/X_*_centered_fp64.npy
+2D/02_prepare_for_rom/center_col.npy
+2D/02_prepare_for_rom/svd_out/

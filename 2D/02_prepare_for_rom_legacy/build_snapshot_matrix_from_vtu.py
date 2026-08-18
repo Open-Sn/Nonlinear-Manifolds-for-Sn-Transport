@@ -48,17 +48,17 @@ except ImportError:
 # ----------------------------
 # Configuration (edit these)
 # ----------------------------
-INPUT_GLOB = "3newh_aflx/aflux_3newh_*_0.vtu"     # e.g., "/path/to/vtu/aflux_1proc_*_0.vtu"
+INPUT_GLOB = "../run/opensn/transient/aflux_3newh_*_0.vtu"     # e.g., "/path/to/vtu/aflux_1proc_*_0.vtu"
 FIELD_PREFIX = "psi_g000_a"            # matches psi_g000_a000_gs00 ... etc.
 ASSOCIATION = "point"                 # "point" (as you said) or "cell"
 DTYPE = np.float32                    # float32 saves RAM/disk; use np.float64 if needed
 DTYPE = np.float64                    # float32 saves RAM/disk; use np.float64 if needed
 USE_MEMMAP = True                     # recommended for 100s of files
-OUTPUT_PATH = "psi_matrix_centered_fp64.npz"        # ".npz" (recommended) or ".npy" or ".npy.gz"
+OUTPUT_PATH = "../run/preparation/snapshots/psi_matrix_centered_fp64.npz"        # ".npz" (recommended) or ".npy" or ".npy.gz"
 
 # Optional centering (subtract this stacked column from all columns):
 # CENTER_FILE = None                    # e.g., "centering_solution.vtu" or None
-CENTER_FILE = "./aflux_3newss_1000_0.vtu"
+CENTER_FILE = "../run/opensn/aflux_3newss_1000_0.vtu"
 
 # Robustness checks:
 REQUIRE_SAME_FIELDS = True            # recommended
@@ -152,6 +152,7 @@ def save_npy_gz(array, out_path, chunk_mb=64):
 
 
 def main():
+    os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
     files = glob.glob(INPUT_GLOB)
     files.sort(key=natural_key)
     if not files:
@@ -162,6 +163,8 @@ def main():
         files[0], ASSOCIATION, FIELD_PREFIX, expected_names=None, dtype=DTYPE)
     nrows = col0.size
     ncols = len(files)
+    if ncols != 1001:
+        raise RuntimeError("Expected 1001 snapshots, found {}".format(ncols))
 
     print("Matched {} field(s) in first file.".format(len(names0)))
     print("Column length per file: {}".format(nrows))

@@ -19,13 +19,14 @@ See the [1-D reproducibility instructions](1D/README-1D.md) for the benchmark de
 
 ## 2-D case
 
-The recovered 2-D full-order and POD reproduction is organized under `2D/`:
+The 2-D paper-reproduction path is organized under `2D/`:
 
 | Stage | Purpose |
 |---|---|
 | `01_run_opensn/` | Reproduce the transient OpenSn full-order calculation and steady reference. |
-| `02_prepare_for_rom/` | Reconstruct mass/operator data, build the centered angular snapshot matrix, and compute the mass-weighted POD. |
+| `02_prepare_for_rom/` | Actual paper preprocessing path; to be introduced separately. |
 | `03_execute_rom/` | ROM reproduction and remaining 2-D paper results; to be populated next. |
+| `02_prepare_for_rom_legacy/` | Preserved early 2-D preprocessing implementation retained for reference and posterity. |
 
 See the [2-D reproducibility instructions](2D/README-2D.md) for the staged
 workflow and current scope.

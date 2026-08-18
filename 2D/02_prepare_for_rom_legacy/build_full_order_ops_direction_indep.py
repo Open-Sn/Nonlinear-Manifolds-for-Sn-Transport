@@ -27,7 +27,7 @@ import glob
 import numpy as np
 import scipy.sparse as sp
 from scipy.sparse import load_npz, save_npz
-MASS_DIR = "dg_mass_out"
+MASS_DIR = "../run/preparation/dg_mass_out"
 MASS_PATTERN = "mass_mat_*.npz"
 
 SIGT_PATH = "sigt.txt"
@@ -36,7 +36,7 @@ SIGS_PATH = "sigs.txt"
 SIGF_PATH = "sigf.txt"
 QEXT_PATH = "qext.txt"
 
-OUT_DIR = "full_order_out"
+OUT_DIR = "../run/preparation/full_order_out"
 OPS_PREFIX = "ops"  # files will be ops_Mt.npz, ops_meta.npz, etc.
 
 

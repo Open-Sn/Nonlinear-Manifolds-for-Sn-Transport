@@ -25,9 +25,9 @@ Optional: SciPy for sparse save_npz (pip install scipy)
 # ----------------------------
 import os
 import numpy as np
-VTU_PATH = r"./aflux_3newss_1000_0.vtu"   # can be full path
+VTU_PATH = r"../run/opensn/aflux_3newss_1000_0.vtu"   # can be full path
 CELL_MAT_NAME = "Block"            # CellData array with material IDs
-OUT_DIR = "dg_mass_out"
+OUT_DIR = "../run/preparation/dg_mass_out"
 
 DTYPE_DATA = np.float64            # accumulation dtype
 SAVE_SPARSE = True                 # if SciPy is available

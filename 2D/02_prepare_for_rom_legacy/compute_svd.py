@@ -28,11 +28,11 @@ Notes:
 # Configuration (edit these)
 # ----------------------------
 
-FULL_META_PATH = os.path.join("full_order_out", "ops_meta.npz")
+FULL_META_PATH = os.path.join("..", "run", "preparation", "full_order_out", "ops_meta.npz")
 
-NPZ_PATH = "psi_matrix_centered_fp64.npz"   # your saved snapshot matrix
+NPZ_PATH = os.path.join("..", "run", "preparation", "snapshots", "psi_matrix_centered_fp64.npz")   # your saved snapshot matrix
 MATRIX_KEY = "X"                # in our earlier writer: X=...
-OUT_DIR = "svd_out"
+OUT_DIR = os.path.join("..", "run", "preparation", "svd_out")
 # Save singular values separately + plot
 SAVE_SVALS_NPY = True
 SAVE_SVALS_CSV = True
@@ -45,7 +45,7 @@ SVALS_PLOT_NAME = None   # e.g. .png
 
 # If K is None, compute all modes (can be huge for U).
 # Strongly recommended: set K to something like 20, 50, 100.
-K = 1000
+K = 120
 
 # Row blocking for building C (if M1 not given) and for computing U (tune to your RAM)
 BLOCK_ROWS = 200_000
@@ -254,6 +254,20 @@ def main():
     # Clip negatives due to roundoff before sqrt
     evals_clipped = np.clip(evals, 0.0, None)
     sfull = np.sqrt(evals_clipped)
+
+    # Plot the complete singular-value spectrum
+    import matplotlib.pyplot as plt
+    mode_index = np.arange(1, sfull.size + 1)
+    plt.figure()
+    plt.semilogy(mode_index, sfull)
+    plt.axvline(K, color="k", linestyle="--", label="K = {}".format(K))
+    plt.xlabel("POD/SVD mode index")
+    plt.ylabel(r"Singular value $\sigma_i$")
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(OUT_DIR, "singular_values.pdf"))
+    plt.close()
 
     # Determine how many modes are effectively nonzero
     keep = np.where(sfull > S_TOL)[0]

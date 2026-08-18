@@ -9,7 +9,7 @@ OpenSn angular-flux snapshots and steady state
       ↓
 02_prepare_for_rom
       ↓
-mass matrices, full-order operators, X1001 snapshots, and POD
+mass matrices, full-order operators, and centered X1001 snapshots
       ↓
 03_execute_rom
 ```
@@ -22,8 +22,10 @@ cross-section file used to generate the angular-flux data. See the
 
 ## Stage 2: Preparation for ROM
 
-`02_prepare_for_rom/` is reserved for the actual paper-reproduction
-preprocessing path and will be introduced separately.
+[`02_prepare_for_rom/`](02_prepare_for_rom/) contains the actual
+paper-reproduction preprocessing path. It constructs the mass matrices,
+full-order operators, and centered snapshot matrix needed by Stage 3. POD is
+computed by the Stage 3 paper ROM driver, not by Stage 2.
 
 ## Preserved legacy preprocessing
 

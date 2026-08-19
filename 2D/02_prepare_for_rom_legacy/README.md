@@ -36,14 +36,14 @@ triangle connectivity, and the cell-data material identifier `Block`.
 **Operation.** For each triangular cell $K$, it computes the area and the
 consistent P1 finite-element mass matrix
 
-\[
+$$
 M_K=\frac{|K|}{12}
 \begin{bmatrix}
 2&1&1\\
 1&2&1\\
 1&1&2
 \end{bmatrix}.
-\]
+$$
 
 The VTU point numbering is used directly. This preserves OpenSn's duplicated,
 cell-local discontinuous-Galerkin degrees of freedom instead of merging them
@@ -63,11 +63,11 @@ tables `sigt.txt`, `sigs.txt`, `sigf.txt`, `ivel.txt`, and `qext.txt`.
 **Operation.** If $M_m$ is the mass matrix restricted to material $m$, the
 script forms sparse direction-independent spatial operators such as
 
-\[
+$$
 M_t=\sum_m \sigma_{t,m}M_m,\qquad
 M_v=\sum_m v_m^{-1}M_m,\qquad
 M_s=\sum_m \sigma_{s,m}M_m,
-\]
+$$
 
 together with $M_1=\sum_m M_m$, the production matrix $M_f$, and the
 external-source matrix $M_q$. The forcing vector is evaluated as
@@ -107,14 +107,14 @@ identified by `full_order_out/ops_meta.npz`.
 **Operation.** This is the original legacy mass-weighted Gram-matrix POD. For
 direction blocks $D_d$, it accumulates
 
-\[
+$$
 C=\sum_d D_d^T M_1 D_d
   =D^T(I_{N_{\mathrm{dir}}}\otimes M_1)D
-\]
+$$
 
 in `float64`, symmetrizes $C$, and solves its symmetric eigensystem. The
 singular values are
-\(\sigma_i=\sqrt{\max(\lambda_i,0)}\), and the first 120 physical modes are
+$\sigma_i=\sqrt{\max(\lambda_i,0)}$, and the first 120 physical modes are
 formed as $U=DV\operatorname{diag}(1/\sigma_i)$.
 
 The Gram accumulation is performed one angular direction at a time. Basis
@@ -141,16 +141,16 @@ preceding `compute_svd.py` step.
 
 **Operation.** For block-diagonal angular operators, the script evaluates
 
-\[
+$$
 U^T(I\otimes M)U=\sum_d U_d^T M U_d
-\]
+$$
 
 without constructing the full Kronecker matrix. For scattering and production
 operators whose angular block rows are identical, it forms
 
-\[
+$$
 A=\sum_d U_d,\qquad B=\sum_d w_dU_d,\qquad G=A^TMB,
-\]
+$$
 
 which uses the rank-one angular structure directly. The forcing is also
 projected direction by direction.
@@ -165,10 +165,10 @@ Each material table has two columns: material ID and coefficient.
 
 | File | Quantity and use |
 |---|---|
-| `sigt.txt` | Total macroscopic cross section \(\sigma_t\); weights the material masses used to construct `Mt`. |
-| `sigs.txt` | Scattering macroscopic cross section \(\sigma_s\); weights the material masses used to construct `Ms`. |
-| `sigf.txt` | Effective production coefficient \(\nu\sigma_f\) used directly by the code; weights the material masses used to construct `Mf`. |
-| `ivel.txt` | Inverse particle velocity \(1/v\); weights the material masses used to construct `Mv`. |
+| `sigt.txt` | Total macroscopic cross section $\sigma_t$; weights the material masses used to construct `Mt`. |
+| `sigs.txt` | Scattering macroscopic cross section $\sigma_s$; weights the material masses used to construct `Ms`. |
+| `sigf.txt` | Effective production coefficient $\nu\sigma_f$ used directly by the code; weights the material masses used to construct `Mf`. |
+| `ivel.txt` | Inverse particle velocity $1/v$; weights the material masses used to construct `Mv`. |
 | `qext.txt` | External volumetric-source coefficient; weights the material masses used to construct `Mq` and hence `fq`. |
 | `w.txt` | The 32 normalized angular quadrature weights, in the same direction order as the VTU angular fields; used by `project_to_reduced_ops.py` for angular scattering/production coupling. |
 

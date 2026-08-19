@@ -12,7 +12,7 @@ Build full-order spatial operators from per-material DG mass matrices.
 Outputs:
   - Sparse CSC matrices: Mt, M1, Mv, Ms, Mf, Mq saved as .npz
   - Spatial forcing vector fq = Mq @ 1 saved in metadata .npz
-  - Metadata (N, Ndir, materials, weights, coefficient arrays, paths)
+  - Metadata (N, materials, coefficient arrays, forcing, paths)
 
 This script does NOT load U and does NOT compute reduced quantities.
 """

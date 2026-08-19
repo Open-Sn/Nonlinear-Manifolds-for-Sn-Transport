@@ -21,7 +21,7 @@ if "opensn_console" not in globals():
     from pyopensn.logvol import RPPLogicalVolume
 
 
-def ramp_q(time_value: float, q0: float, t_ramp: float) -> float:
+def ramp_q(time_value, q0, t_ramp):
     if time_value <= 0.0:
         return 0.0
     if time_value < t_ramp:
@@ -58,7 +58,7 @@ if __name__ == "__main__":
 
     q0 = 0.0
     t_ramp = 0. 
-    def source_func(group: int, time_value: float) -> float:
+    def source_func(group, time_value):
         return ramp_q(time_value, q0, t_ramp)
     vol_src = VolumetricSource(block_ids=[12], strength_function=source_func)
 
@@ -152,9 +152,9 @@ if __name__ == "__main__":
         fflist = phys.GetScalarFieldFunctionList()
         afflist = phys.GetAngularFieldFunctionList(groups=[0], angles=lst_angle_ids)
 
-    vtk_basename = f"{vtk_root}_{step:04d}"   # -> flux_0001, flux_0002, ...
+    vtk_basename = f"{vtk_root}_{step:04d}"   # -> flux_3newss_1000 at the final step
     FieldFunctionGridBased.ExportMultipleToPVTU(fflist, vtk_basename)
-    vtk_basename = f"{vtk_roota}_{step:04d}"   # -> flux_0001, flux_0002, ...
+    vtk_basename = f"{vtk_roota}_{step:04d}"   # -> aflux_3newss_1000 at the final step
     FieldFunctionGridBased.ExportMultipleToPVTU(afflist, vtk_basename)
 
 

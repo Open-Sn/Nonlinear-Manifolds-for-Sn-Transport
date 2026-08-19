@@ -60,9 +60,9 @@ class NonlinearManifoldReducedModel:
 
     def __init__(
         self, 
-        nonlinear_embedding_type: str = "tensorial", # "poly", "tensorial", "rbf", or None
-        eps_rbf: float = None,
-        every_rbf: int = None,
+        nonlinear_embedding_type = "tensorial", # "poly", "tensorial", "rbf", or None
+        eps_rbf = None,
+        every_rbf = None,
     ):
 
         # ── Nonlinear embedding type ───────────────────────────────────────
@@ -145,10 +145,10 @@ class NonlinearManifoldReducedModel:
     # ======================================================================
     def load_training_data(
         self, 
-        solution_path: str = SOLUTION_PATH, 
-        train_fraction: float = 0.75,
-        TT: float = 10.0,
-        dt: float = 0.001,
+        solution_path = SOLUTION_PATH,
+        train_fraction = 0.75,
+        TT = 10.0,
+        dt = 0.001,
     ):
         """Load Sp-DG1 snapshots, compute asymptotic solution, and build training set."""
 
@@ -210,7 +210,7 @@ class NonlinearManifoldReducedModel:
     # ======================================================================
     # 3. PERFORM POD ON THE TRAINING SET
     # ======================================================================
-    def compute_pod(self, size_R: int = 16, size_Q: int = 548):
+    def compute_pod(self, size_R = 16, size_Q = 548):
         """
         Compute POD / SVD and split into linear and orthogonal complement bases.
  
@@ -242,7 +242,7 @@ class NonlinearManifoldReducedModel:
         print(f"POD done. size_R={self.size_R}, size_Q={self.size_Q}.")
 
 
-    def select_pod_subspaces(self, size_R: int, size_Q: int):
+    def select_pod_subspaces(self, size_R, size_Q):
         """Select reduced subspaces from an already-computed POD decomposition.
 
         This inexpensive operation is useful for reduced-dimension studies: it
@@ -304,7 +304,7 @@ class NonlinearManifoldReducedModel:
     # ======================================================================
     # 4. COMPUTE NONLINEAR EMBEDDING
     # ======================================================================
-    def compute_nonlinear_embedding(self, lambda_E: float = 1e-7):
+    def compute_nonlinear_embedding(self, lambda_E = 1e-7):
         """
         Construct polynomial, tensorial, and RBF nonlinear function handles,
         evaluate them on the linear POD coefficients, and compute lifting
@@ -457,7 +457,7 @@ class NonlinearManifoldReducedModel:
         return AA, HH
 
 
-    def compute_inferred_operators(self, lambda_A: float = 0.0, lambda_H: float = 1e-3):
+    def compute_inferred_operators(self, lambda_A = 0.0, lambda_H = 1e-3):
         """
         Use operator inference to approximate the linear and nonlinear streaming operators.
  
@@ -511,7 +511,7 @@ class NonlinearManifoldReducedModel:
     # ======================================================================
     # 8. SOLVE REDUCED PROBLEMS
     # ======================================================================
-    def solve(self, intrusive: bool = True, return_online_time: bool = False):
+    def solve(self, intrusive = True, return_online_time = False):
         """
         Integrate the projected or inferred linear, or nonlinear reduced-order models in time 
         and reconstruct the full-order solution from the reduced coefficients and the POD bases. 

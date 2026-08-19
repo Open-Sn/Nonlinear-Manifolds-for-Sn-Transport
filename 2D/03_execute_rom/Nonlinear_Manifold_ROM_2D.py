@@ -677,7 +677,7 @@ def plot_scalar_flux_errors(model, solutions, mesh_path, output_path):
     for solution in solutions:
         reconstruction = model.basis @ solution[:, indices]
         angular_error = (
-            model.global_training_set[:, indices] - reconstruction
+            reconstruction - model.global_training_set[:, indices]
         )
         fields.append(
             angular_error.reshape(

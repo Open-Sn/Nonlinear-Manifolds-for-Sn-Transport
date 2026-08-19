@@ -9,7 +9,7 @@ The two cases are intentionally maintained in separate directories so that each 
 | Directory | Description |
 |---|---|
 | [`1D/`](1D/) | 1-D transport benchmark, ROM implementation, and Figures 1–5 reproduction workflow. |
-| [`2D/`](2D/) | Reserved for the separate 2-D transport benchmark and ROM reproduction workflow, which will be added later. |
+| [`2D/`](2D/) | Three-stage 2-D workflow: OpenSn full-order calculation, ROM preparation, and paper ROM execution. |
 
 ## 1-D case
 
@@ -19,7 +19,20 @@ See the [1-D reproducibility instructions](1D/README-1D.md) for the benchmark de
 
 ## 2-D case
 
-The separate 2-D implementation and results will live under `2D/`. Detailed reproducibility instructions will be added as `2D/README-2D.md` when that workflow is finalized.
+The 2-D paper-reproduction path is organized under `2D/`:
+
+| Stage | Purpose |
+|---|---|
+| `01_run_opensn/` | Full-order transient OpenSn problem and steady reference. |
+| `02_prepare_for_rom/` | DG mass matrices, full-order spatial operators, centered angular-flux snapshots, and center vector. |
+| `03_execute_rom/` | Mass-weighted POD, nonlinear-manifold ROMs, operator inference, and paper figures. |
+
+`2D/02_prepare_for_rom_legacy/` preserves archival/reference preprocessing
+code and is not part of the active reproduction chain.
+
+See the [2-D reproducibility instructions](2D/README-2D.md) for the staged
+workflow. The large 2-D OpenSn outputs are stored on
+[Zenodo](https://doi.org/10.5281/zenodo.21762243) rather than in Git.
 
 ## License
 

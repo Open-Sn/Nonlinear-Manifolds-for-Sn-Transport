@@ -152,7 +152,7 @@ def solve_transport(Psi0, t_final, qext_func=None, psi_bc_func=None, n_output_ti
 # B. SOLVE THE TIME-DEPENDENT PROBLEM AND SAVE THE SOLUTION FOR LATER USE
 # =======================================================================
 
-# Check if the file "solutionDG1_A4_T10_Nt10000_Nx750_continuous.npy" exists and if not, solve the time-dependent transport equation:
+# Check if the file "solutionDG1_A4_T10_Nt10001_Nx750_continuous_bis.npy" exists and if not, solve the time-dependent transport equation:
 if not os.path.exists(SOLUTION_PATH):
     print(f"File '{SOLUTION_PATH}' not found. Solving the time-dependent transport equation and saving the solution. This may take a while...")
 

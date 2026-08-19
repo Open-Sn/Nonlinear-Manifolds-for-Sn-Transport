@@ -26,7 +26,7 @@ cross-section file used to generate the angular-flux data. See the
 paper-reproduction preprocessing path. It constructs the mass matrices,
 full-order spatial operators, centered snapshot matrix, and center vector
 needed by Stage 3. POD is computed by the Stage 3 paper ROM driver, not by
-Stage 2.
+Stage 2. See the [Stage 2 instructions](02_prepare_for_rom/README.md).
 
 ## Preserved legacy preprocessing
 

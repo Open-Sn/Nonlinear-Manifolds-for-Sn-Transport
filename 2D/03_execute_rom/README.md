@@ -75,24 +75,24 @@ The script performs the following main operations:
 8. Integrate the reduced models with SciPy `solve_ivp`.
 9. Compute the paper error measures and generate the figures.
 
-For angular blocks \(u_d\) and \(v_d\), the phase-space mass inner product
+For angular blocks $u_d$ and $v_d$, the phase-space mass inner product
 used by the POD is
 
-\[
+$$
 \langle u,v\rangle_M
 =
 \sum_{d=1}^{32} u_d^T M_v v_d .
-\]
+$$
 
-The nonlinear models lift nonlinear features \(h(a)\) of the primary reduced
+The nonlinear models lift nonlinear features $h(a)$ of the primary reduced
 coordinates into the POD complement:
 
-\[
+$$
 q(a)=E\,h(a),
 \qquad
 \psi_{\mathrm{ROM}}
 \approx \psi_\infty + U_r a + U_q q(a).
-\]
+$$
 
 Known reaction terms are projected onto the POD spaces, while the reduced
 streaming terms are inferred from the snapshot coefficients and their finite-
@@ -101,21 +101,21 @@ difference derivatives.
 The instantaneous error used for Figure 9 is the steady-state-normalized mass
 error
 
-\[
+$$
 e_j=
 \frac{\lVert\psi_j^{\mathrm{ROM}}-\psi_j^{\mathrm{FOM}}\rVert_M}
 {\lVert\psi_\infty\rVert_M},
-\]
+$$
 
 and Figure 10 uses the corresponding relative space-time mass error,
 
-\[
+$$
 E_{\mathrm{st}}=
 \left(
 \frac{\sum_j \lVert\psi_j^{\mathrm{ROM}}-\psi_j^{\mathrm{FOM}}\rVert_M^2}
 {\sum_j \lVert\psi_j^{\mathrm{FOM}}\rVert_M^2}
 \right)^{1/2}.
-\]
+$$
 
 The paper calculation retains 132 POD modes. The main comparison uses
 
@@ -130,10 +130,10 @@ Figure 10 parameter study.
 ## Historical time parameterization
 
 The OpenSn snapshots correspond to physical times through approximately
-\(t=5\), with nominal Stage 1 `dt=0.005`. The preserved paper ROM uses
+$t=5$, with nominal Stage 1 `dt=0.005`. The preserved paper ROM uses
 `TT=10` and `DT=0.01` internally for coefficient differentiation and reduced
 integration, while the paper plots label the physical interval as
-\(t=0,\ldots,5\). This historical parameterization is retained for the paper
+$t=0,\ldots,5$. This historical parameterization is retained for the paper
 reproduction; no additional physical interpretation is asserted here.
 
 ## Tests and figures

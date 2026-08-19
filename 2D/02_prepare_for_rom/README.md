@@ -36,16 +36,16 @@ direction, so each angular state has 698,880 entries.
 
 ## Preprocessing
 
-For transient state \(\psi_j\) and steady angular state \(\psi_\infty\), the
+For transient state $\psi_j$ and steady angular state $\psi_\infty$, the
 centered snapshot is
 
-\[
+$$
 X_j = \psi_j - \psi_\infty .
-\]
+$$
 
-For each triangular cell \(K\), the consistent P1 element mass matrix is
+For each triangular cell $K$, the consistent P1 element mass matrix is
 
-\[
+$$
 M_K =
 \frac{|K|}{12}
 \begin{bmatrix}
@@ -53,18 +53,18 @@ M_K =
 1 & 2 & 1\\
 1 & 1 & 2
 \end{bmatrix}.
-\]
+$$
 
-The cell contributions are collected into one sparse matrix \(M_m\) per
+The cell contributions are collected into one sparse matrix $M_m$ per
 material. Material-weighted spatial operators are then assembled, for example,
 
-\[
+$$
 M_t=\sum_m \sigma_{t,m}M_m,
 \qquad
 M_v=\sum_m v_m^{-1}M_m,
 \qquad
 M_s=\sum_m \sigma_{s,m}M_m,
-\]
+$$
 
 with analogous assembly for the production and external-source operators.
 

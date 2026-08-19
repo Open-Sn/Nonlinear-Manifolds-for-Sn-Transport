@@ -749,15 +749,16 @@ if __name__ == "__main__":
     # -------------------------------------------------------------------------
     # Input paths.  Change only these entries when the files are elsewhere or
     # have different names.
-    SNAPSHOT_PATH = "psi_matrix_centered_fp64.npz"
-    CENTER_PATH = "center_col.npy"
-    OPERATOR_PATH = Path("full_order_out")
+    SNAPSHOT_PATH = "../run/preparation/snapshots/psi_matrix_centered_fp64.npz"
+    CENTER_PATH = "../run/preparation/snapshots/center_col.npy"
+    OPERATOR_PATH = Path("../run/preparation/full_order_out")
     MASS_PATH = OPERATOR_PATH / "ops_Mv.npz"
     TOTAL_PATH = OPERATOR_PATH / "ops_Mt.npz"
     SCATTERING_PATH = OPERATOR_PATH / "ops_Ms.npz"
     FISSION_PATH = OPERATOR_PATH / "ops_Mf.npz"
-    MESH_PATH = "aflux_3newss_1000_0.vtu"
-    FIGURE_PATH = Path(".")
+    MESH_PATH = "../run/opensn/aflux_3newss_1000_0.vtu"
+    FIGURE_PATH = Path("../run/rom")
+    FIGURE_PATH.mkdir(parents=True, exist_ok=True)
 
     # Select the paper experiments to run.
     TEST_1 = True    # relative unresolved energy

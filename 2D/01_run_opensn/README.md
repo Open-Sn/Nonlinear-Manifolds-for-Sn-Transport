@@ -10,7 +10,10 @@ These inputs are not part of the OpenSn automated testing suite because the tran
 
 This stage preserves the inputs for the transient two-dimensional OpenSn full-order calculation and the long-time calculation used as the steady reference.
 
-The steady angular flux is required because the ROM study is performed on **centered snapshots**: Stage 2 subtracts the steady solution from every transient angular-flux snapshot before computing the POD.
+The steady angular flux is required because the ROM study is performed on
+**centered snapshots**: Stage 2 subtracts the steady solution from every
+transient angular-flux snapshot. Stage 3 computes the POD from that centered
+matrix.
 
 ## Files
 
@@ -39,7 +42,8 @@ The retained OpenSn output contains 32 angular fields. The spatial discretizatio
 32 × 21,840 = 698,880
 ```
 
-unknowns. This state dimension is also independently confirmed by the stored POD modes produced in Stage 2.
+unknowns. This state dimension is also confirmed by the centered snapshot
+matrix consumed by Stage 3.
 
 Material blocks are mapped as follows:
 
@@ -61,7 +65,10 @@ flux_3newh_####
 aflux_3newh_####
 ```
 
-Files 0001--1000 are the maintained physical-time sequence. Floating-point time accumulation caused one additional near-zero step, so file 1001 is a near-duplicate diagnostic rather than a maintained training state.
+Files 0001--1000 are the maintained physical-time sequence. Floating-point
+time accumulation caused one additional near-zero step, so file 1001 is a
+near-duplicate of the final state. The historical paper preprocessing retains
+all 1001 files.
 
 ## Steady-reference calculation
 
@@ -78,7 +85,8 @@ The single-rank angular piece needed by Stage 2 is
 aflux_3newss_1000_0.vtu
 ```
 
-Stage 2 subtracts this steady angular state from each transient angular state before constructing the POD snapshot matrix.
+Stage 2 subtracts this steady angular state from each transient angular state
+to construct the centered snapshot matrix used by Stage 3.
 
 ## Expected OpenSn outputs
 
@@ -103,11 +111,46 @@ Stage 2 uses **angular flux**. Scalar flux is a derived diagnostic and is not th
 
 A future rerun with a newer OpenSn version may therefore require interface/import adaptation. Such adaptation should preserve the physical problem and numerical settings documented above.
 
+## Obtaining the OpenSn outputs
+
+### Recommended reproduction path
+
+Download the following files from
+[Zenodo](https://doi.org/10.5281/zenodo.21762243):
+
+```text
+3newh_aflx.tar
+aflux_3newss_1000_0.vtu
+```
+
+Place the archive and steady VTU under `2D/run/opensn/`, and extract the
+transient angular-flux VTUs under `2D/run/opensn/transient/`. The resulting
+layout needed by Stage 2 is:
+
+```text
+2D/run/opensn/aflux_3newss_1000_0.vtu
+2D/run/opensn/transient/aflux_3newh_0001_0.vtu
+...
+2D/run/opensn/transient/aflux_3newh_1001_0.vtu
+```
+
+These large files remain outside Git.
+
+### Regenerate with OpenSn
+
+The retained input files were used with OpenSn as it existed in February
+2026, but the exact historical commit and launch command were not preserved.
+A researcher wishing to regenerate the full-order outputs should use the
+current OpenSn documentation for the installed version and preserve the
+physical and numerical settings recorded above. No exact historical command
+is claimed here.
+
 ## Output needed by Stage 2
 
 Stage 2 requires:
 
-- angular VTUs `aflux_3newh_0001_0.vtu` through `aflux_3newh_1000_0.vtu` only; and
+- angular VTUs `aflux_3newh_0001_0.vtu` through `aflux_3newh_1001_0.vtu`; and
 - `aflux_3newss_1000_0.vtu`.
 
-Follow the [Stage 2 data-handoff instructions](../02_prepare_for_rom/README.md#inputs-from-stage-1-or-archived-data) to move or extract these files without duplicating the multi-gigabyte data.
+See the [Stage 2 input instructions](../02_prepare_for_rom/README.md#input-data)
+for the paths used by the preprocessing scripts.

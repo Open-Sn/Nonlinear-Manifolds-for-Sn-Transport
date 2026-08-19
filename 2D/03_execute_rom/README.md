@@ -9,9 +9,9 @@ The main script is:
 Nonlinear_Manifold_ROM_2D.py
 ```
 
-It starts from the data prepared in `../02_prepare_for_rom/`. The script
-computes the POD basis, constructs the linear and nonlinear-manifold reduced
-models, infers the reduced streaming operators, integrates the reduced
+It starts from the data written under `../run/preparation/` by Stage 2. The
+script computes the POD basis, constructs the linear and nonlinear-manifold
+reduced models, infers the reduced streaming operators, integrates the reduced
 systems, evaluates the errors, and generates the paper figures.
 
 ## Inputs
@@ -46,11 +46,11 @@ subtracted from the transient snapshots during Stage 2.
 
 ## Run
 
-From this directory:
+From the repository root:
 
 ```bash
 cd 2D/03_execute_rom
-python Nonlinear_Manifold_ROM_2D.py
+python3 Nonlinear_Manifold_ROM_2D.py
 ```
 
 The script uses ordinary research parameters and Boolean test switches near
@@ -75,6 +75,48 @@ The script performs the following main operations:
 8. Integrate the reduced models with SciPy `solve_ivp`.
 9. Compute the paper error measures and generate the figures.
 
+For angular blocks \(u_d\) and \(v_d\), the phase-space mass inner product
+used by the POD is
+
+\[
+\langle u,v\rangle_M
+=
+\sum_{d=1}^{32} u_d^T M_v v_d .
+\]
+
+The nonlinear models lift nonlinear features \(h(a)\) of the primary reduced
+coordinates into the POD complement:
+
+\[
+q(a)=E\,h(a),
+\qquad
+\psi_{\mathrm{ROM}}
+\approx \psi_\infty + U_r a + U_q q(a).
+\]
+
+Known reaction terms are projected onto the POD spaces, while the reduced
+streaming terms are inferred from the snapshot coefficients and their finite-
+difference derivatives.
+
+The instantaneous error used for Figure 9 is the steady-state-normalized mass
+error
+
+\[
+e_j=
+\frac{\lVert\psi_j^{\mathrm{ROM}}-\psi_j^{\mathrm{FOM}}\rVert_M}
+{\lVert\psi_\infty\rVert_M},
+\]
+
+and Figure 10 uses the corresponding relative space-time mass error,
+
+\[
+E_{\mathrm{st}}=
+\left(
+\frac{\sum_j \lVert\psi_j^{\mathrm{ROM}}-\psi_j^{\mathrm{FOM}}\rVert_M^2}
+{\sum_j \lVert\psi_j^{\mathrm{FOM}}\rVert_M^2}
+\right)^{1/2}.
+\]
+
 The paper calculation retains 132 POD modes. The main comparison uses
 
 ```text
@@ -83,19 +125,28 @@ N_q = 64
 ```
 
 for the nonlinear models. Additional dimensions are exercised by the
-Figure 10 parameter study. :contentReference[oaicite:1]{index=1}
+Figure 10 parameter study.
+
+## Historical time parameterization
+
+The OpenSn snapshots correspond to physical times through approximately
+\(t=5\), with nominal Stage 1 `dt=0.005`. The preserved paper ROM uses
+`TT=10` and `DT=0.01` internally for coefficient differentiation and reduced
+integration, while the paper plots label the physical interval as
+\(t=0,\ldots,5\). This historical parameterization is retained for the paper
+reproduction; no additional physical interpretation is asserted here.
 
 ## Tests and figures
 
 The four Boolean switches near the bottom of the script control the paper
 calculations:
 
-| Switch | Calculation | Output |
-| --- | --- | --- |
-| `TEST_1` | Relative unresolved POD energy | `average_approximation_error_16_2d.pdf` |
-| `TEST_2` | Inferred-model error histories | `relative_error_inferred_models_16_2d.pdf` |
-| `TEST_3` | ROM dimension, accuracy, and online speed-up study | `Projected_Integral_Errors_32_2d.pdf` |
-| `TEST_4` | Scalar flux and spatial ROM-error fields | `scalar_flux_and_spatial_model_errors_16_2d.pdf` |
+| Switch | Paper figure | Calculation | Output |
+| --- | --- | --- | --- |
+| `TEST_1` | Figure 8 | Relative unresolved POD energy | `average_approximation_error_16_2d.pdf` |
+| `TEST_2` | Figure 9 | Inferred-model error histories | `relative_error_inferred_models_16_2d.pdf` |
+| `TEST_3` | Figure 10 | ROM dimension, accuracy, and online speed-up study | `Projected_Integral_Errors_32_2d.pdf` |
+| `TEST_4` | Figure B.11 | Scalar flux and spatial ROM-error fields | `scalar_flux_and_spatial_model_errors_16_2d.pdf` |
 
 The generated figures are written to:
 
@@ -105,7 +156,6 @@ The generated figures are written to:
 
 `TEST_3` is the most expensive test because it evaluates several values of
 `N_r` and `N_q` and repeats the reduced solves for timing measurements.
-:contentReference[oaicite:2]{index=2}
 
 For a quicker rerun of only one result, the other Boolean switches can be
 temporarily set to `False`. Restore the paper settings before committing

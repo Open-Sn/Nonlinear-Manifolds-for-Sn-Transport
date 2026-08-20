@@ -37,8 +37,8 @@ from vtk.util.numpy_support import vtk_to_numpy
 
 # Fixed discretization used by the two-dimensional paper experiment.
 NUM_DIRECT = 32
-TT = 10.0
-DT = 0.01
+TT = 5.0
+DT = 0.005
 NUM_MODES = 132
 
 
@@ -563,7 +563,7 @@ def plot_unresolved_energy(model, size_R, size_Q, output_path):
 def plot_inferred_errors(model, solutions, output_path):
     """Plot the three normalized inferred-model errors (Figure 9)."""
 
-    display_time = np.linspace(0.0, 5.0, model.num_snapshots)
+    display_time = np.linspace(0.0, TT, model.num_snapshots)
     fig, ax = plt.subplots(figsize=(7.8, 2.75))
     for label, solution in zip(
         ("Linear", "Polynomial", "Tensorial"), solutions
@@ -575,7 +575,7 @@ def plot_inferred_errors(model, solutions, output_path):
     ax.grid(True)
     ax.legend(loc="lower center")
     fig.tight_layout()
-    ax.set_xlim((0.0, 5.0))
+    ax.set_xlim((0.0, TT))
     ax.set_ylim((3.6e-4, 3.6e-2))
     fig.savefig(output_path)
     plt.close(fig)

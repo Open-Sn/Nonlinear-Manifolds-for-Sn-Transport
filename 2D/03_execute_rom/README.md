@@ -131,7 +131,7 @@ Figure 10 parameter study.
 
 The OpenSn snapshots correspond to physical times through approximately
 $t=5$, with nominal Stage 1 `dt=0.005`. The preserved paper ROM uses
-`TT=10` and `DT=0.01` internally for coefficient differentiation and reduced
+`TT=5` and `DT=0.005` internally for coefficient differentiation and reduced
 integration, while the paper plots label the physical interval as
 $t=0,\ldots,5$. This historical parameterization is retained for the paper
 reproduction; no additional physical interpretation is asserted here.
